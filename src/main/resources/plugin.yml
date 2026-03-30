@@ -1,0 +1,21 @@
+name: AuctionHousePro
+version: '${project.version}'
+main: com.auctionhousepro.AuctionHouseProPlugin
+api-version: '1.20'
+authors: [GitHubCopilot]
+description: Premium auction house for Paper/Spigot 1.20+
+softdepend: [Vault, PlaceholderAPI]
+commands:
+  auctionhouse:
+    aliases: [ah, auc]
+    description: Opens and manages the auction house
+    usage: /<command> [subcommand]
+permissions:
+  auctionhousepro.use:
+    default: true
+  auctionhousepro.admin:
+    default: op
+  auctionhousepro.bypass.fees:
+    default: op
+  auctionhousepro.locale:
+    default: true

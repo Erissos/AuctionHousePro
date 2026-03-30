@@ -1,0 +1,54 @@
+database:
+  type: sqlite
+  sqlite-file: auctions.db
+  mysql:
+    host: localhost
+    port: 3306
+    database: auctionhouse
+    username: root
+    password: change-me
+    parameters: '?useSSL=false&allowPublicKeyRetrieval=true&characterEncoding=utf8'
+  pool:
+    maximum-pool-size: 10
+    minimum-idle: 2
+auction:
+  default-duration-minutes: 1440
+  allowed-durations-minutes: [60, 180, 720, 1440, 4320]
+  min-duration-minutes: 15
+  max-duration-minutes: 10080
+  max-active-listings: 30
+  listing-fee: 25.0
+  tax-rate: 0.02
+  commission-rate: 0.05
+  anti-snipe-window-seconds: 45
+  anti-snipe-extension-seconds: 60
+  bid-cooldown-millis: 750
+  list-cooldown-millis: 1250
+  max-search-results: 500
+  broadcast-rare-threshold: 50000.0
+restrictions:
+  blacklist-materials:
+    - BEDROCK
+    - BARRIER
+  whitelist-enabled: false
+  whitelist-materials: []
+  nbt-blocked-keys:
+    - PublicBukkitValues.illegal_plugin:illegal
+localization:
+  default-locale: en_US
+  fallback-locale: en_US
+discord:
+  enabled: false
+  webhook-url: ''
+  notify-rare-listings: true
+  notify-high-sales: true
+  note: 'Webhook settings can also be managed from webhook.yml.'
+performance:
+  refresh-ticks: 20
+  expire-check-ticks: 40
+  preload-active-auctions: true
+sounds:
+  menu-open: BLOCK_AMETHYST_BLOCK_CHIME
+  menu-click: UI_BUTTON_CLICK
+  menu-page: ITEM_BOOK_PAGE_TURN
+  menu-action: ENTITY_EXPERIENCE_ORB_PICKUP

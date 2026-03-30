@@ -1,0 +1,11 @@
+enabled: false
+webhook-url: ''
+notify-rare-listings: true
+notify-high-sales: true
+messages:
+  rare-listing:
+    title: 'Rare listing'
+    description: '<seller> listed <item> for <price>'
+  high-sale:
+    title: 'High value sale'
+    description: 'Auction #<auction_id> sold for <amount>'
