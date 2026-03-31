@@ -39,4 +39,10 @@ public final class NotificationService {
             player.sendMessage(component);
         }
     }
+
+    public void broadcast(String path, Map<String, String> placeholders) {
+        for (Player player : Bukkit.getOnlinePlayers()) {
+            notify(player.getUniqueId(), path, placeholders);
+        }
+    }
 }

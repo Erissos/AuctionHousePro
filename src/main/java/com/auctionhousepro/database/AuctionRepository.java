@@ -23,5 +23,11 @@ public interface AuctionRepository {
 
     CompletableFuture<List<Auction>> expiringBefore(long epochMillis);
 
+    CompletableFuture<List<Auction>> activeAuctions();
+
+    CompletableFuture<Void> adjustWatchCount(long auctionId, int delta);
+
+    CompletableFuture<Void> incrementViewCount(long auctionId);
+
     CompletableFuture<Void> appendLog(UUID actorId, String action, String details);
 }

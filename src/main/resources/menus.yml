@@ -1,19 +1,26 @@
 browser:
   title: '<!italic><gradient:#62d2ff:#5fffb3><bold>Auction House</bold></gradient>'
-  size: 45
-  content-slots: '10-16,19-25'
+  size: 54
+  content-slots: '10-16,19-25,28-34'
   background-item: LIGHT_BLUE_STAINED_GLASS_PANE
-  previous-page-slot: 36
-  next-page-slot: 44
-  refresh-slot: 40
-  sort-slot: 39
-  claims-slot: 38
-  player-listings-slot: 42
+  previous-page-slot: 45
+  watchlist-slot: 46
+  category-slot: 47
+  next-page-slot: 53
+  refresh-slot: 49
+  sort-slot: 48
+  claims-slot: 44
+  featured-slot: 50
+  player-listings-slot: 51
+  buy-now-slot: 52
 admin:
   title: '<!italic><gradient:#ff9966:#ff5e62><bold>Auction Admin</bold></gradient>'
   size: 45
   content-slots: '10-16,19-25'
   background-item: BLACK_STAINED_GLASS_PANE
+  previous-page-slot: 36
+  next-page-slot: 44
+  refresh-slot: 40
   back-slot: 40
 claims:
   title: '<!italic><gradient:#64f38c:#38d9ff><bold>Claim Center</bold></gradient>'
@@ -21,5 +28,5 @@ claims:
   content-slots: '10-16,19-25'
   background-item: CYAN_STAINED_GLASS_PANE
   previous-page-slot: 36
-  next-page-slot: 44
+  next-page-slot: 43
   refresh-slot: 40

@@ -5,13 +5,16 @@ import com.auctionhousepro.command.AuctionCommand;
 import com.auctionhousepro.config.ConfigManager;
 import com.auctionhousepro.database.AuctionRepository;
 import com.auctionhousepro.database.DatabaseManager;
+import com.auctionhousepro.database.MarketRepository;
 import com.auctionhousepro.database.SqlAuctionRepository;
+import com.auctionhousepro.database.SqlMarketRepository;
 import com.auctionhousepro.discord.DiscordWebhookService;
 import com.auctionhousepro.economy.EconomyService;
 import com.auctionhousepro.gui.GuiManager;
 import com.auctionhousepro.i18n.LocaleManager;
 import com.auctionhousepro.listener.PlayerConnectionListener;
 import com.auctionhousepro.service.AuditLogService;
+import com.auctionhousepro.service.MarketTelemetryService;
 import com.auctionhousepro.service.NotificationService;
 import com.auctionhousepro.service.impl.AuctionServiceImpl;
 import org.bukkit.command.PluginCommand;
@@ -24,10 +27,12 @@ public final class AuctionHouseProPlugin extends JavaPlugin {
     private LocaleManager localeManager;
     private DatabaseManager databaseManager;
     private AuctionRepository auctionRepository;
+    private MarketRepository marketRepository;
     private EconomyService economyService;
     private AuditLogService auditLogService;
     private DiscordWebhookService discordWebhookService;
     private NotificationService notificationService;
+    private MarketTelemetryService telemetryService;
     private AuctionServiceImpl auctionService;
     private GuiManager guiManager;
 
@@ -44,11 +49,13 @@ public final class AuctionHouseProPlugin extends JavaPlugin {
         this.databaseManager = new DatabaseManager(this, configManager);
         this.databaseManager.initialize();
         this.auctionRepository = new SqlAuctionRepository(this, databaseManager);
+        this.marketRepository = new SqlMarketRepository(databaseManager);
         this.economyService = new EconomyService(this);
         this.auditLogService = new AuditLogService(this, databaseManager);
         this.discordWebhookService = new DiscordWebhookService(this, configManager);
         this.notificationService = new NotificationService(localeManager);
-        this.auctionService = new AuctionServiceImpl(this, configManager, auctionRepository, economyService, notificationService, auditLogService, discordWebhookService);
+        this.telemetryService = new MarketTelemetryService();
+        this.auctionService = new AuctionServiceImpl(this, configManager, auctionRepository, marketRepository, economyService, notificationService, auditLogService, discordWebhookService, telemetryService);
         this.guiManager = new GuiManager(this, configManager, localeManager, auctionService);
 
         AuctionHouseProApi.setProvider(auctionService);
@@ -57,6 +64,7 @@ public final class AuctionHouseProPlugin extends JavaPlugin {
         getServer().getPluginManager().registerEvents(new PlayerConnectionListener(localeManager, notificationService), this);
 
         auctionService.startSchedulers();
+        auctionService.warmupCache();
     }
 
     @Override

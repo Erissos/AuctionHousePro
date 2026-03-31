@@ -32,7 +32,7 @@ public final class SqlAuctionRepository implements AuctionRepository {
     @Override
     public CompletableFuture<Auction> insert(Auction auction) {
         return CompletableFuture.supplyAsync(() -> {
-            String sql = "INSERT INTO auctions (seller_id, highest_bidder_id, item_data, type, status, category, starting_price, current_bid, buy_now_price, bid_increment, created_at, expires_at, seller_claimed, buyer_claimed, searchable_text) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+            String sql = "INSERT INTO auctions (seller_id, highest_bidder_id, item_data, type, status, category, starting_price, current_bid, buy_now_price, bid_increment, created_at, expires_at, seller_claimed, buyer_claimed, searchable_text, watch_count, view_count, bid_count, featured_score) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
             try (Connection connection = databaseManager.connection(); PreparedStatement statement = connection.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
                 populateAuction(statement, auction);
                 statement.executeUpdate();
@@ -51,10 +51,10 @@ public final class SqlAuctionRepository implements AuctionRepository {
     @Override
     public CompletableFuture<Void> update(Auction auction) {
         return CompletableFuture.runAsync(() -> {
-            String sql = "UPDATE auctions SET seller_id = ?, highest_bidder_id = ?, item_data = ?, type = ?, status = ?, category = ?, starting_price = ?, current_bid = ?, buy_now_price = ?, bid_increment = ?, created_at = ?, expires_at = ?, seller_claimed = ?, buyer_claimed = ?, searchable_text = ? WHERE id = ?";
+            String sql = "UPDATE auctions SET seller_id = ?, highest_bidder_id = ?, item_data = ?, type = ?, status = ?, category = ?, starting_price = ?, current_bid = ?, buy_now_price = ?, bid_increment = ?, created_at = ?, expires_at = ?, seller_claimed = ?, buyer_claimed = ?, searchable_text = ?, watch_count = ?, view_count = ?, bid_count = ?, featured_score = ? WHERE id = ?";
             try (Connection connection = databaseManager.connection(); PreparedStatement statement = connection.prepareStatement(sql)) {
                 populateAuction(statement, auction);
-                statement.setLong(16, auction.id());
+                statement.setLong(20, auction.id());
                 statement.executeUpdate();
             } catch (SQLException exception) {
                 throw new IllegalStateException("Failed to update auction", exception);
@@ -87,6 +87,13 @@ public final class SqlAuctionRepository implements AuctionRepository {
                 sql.append(" AND status = ?");
                 parameters.add(AuctionStatus.ACTIVE.name());
             }
+            if (normalized.buyNowOnly()) {
+                sql.append(" AND buy_now_price > 0");
+            }
+            if (normalized.featuredOnly()) {
+                sql.append(" AND featured_score >= ?");
+                parameters.add(10.0D);
+            }
             if (normalized.claimsOnly()) {
                 sql.append(" AND ((seller_id = ? AND status IN ('SOLD','EXPIRED','CANCELLED') AND seller_claimed = 0) OR (highest_bidder_id = ? AND status = 'SOLD' AND buyer_claimed = 0))");
                 String uuid = normalized.sellerId() == null ? "" : normalized.sellerId().toString();
@@ -96,6 +103,10 @@ public final class SqlAuctionRepository implements AuctionRepository {
                 sql.append(" AND seller_id = ?");
                 parameters.add(normalized.sellerId().toString());
             }
+            if (normalized.favoritesOnly() && normalized.watcherId() != null) {
+                sql.append(" AND EXISTS (SELECT 1 FROM auction_watchlist w WHERE w.auction_id = auctions.id AND w.player_id = ?)");
+                parameters.add(normalized.watcherId().toString());
+            }
             if (normalized.category() != null && normalized.category() != AuctionCategory.ALL) {
                 sql.append(" AND category = ?");
                 parameters.add(normalized.category().name());
@@ -104,7 +115,7 @@ public final class SqlAuctionRepository implements AuctionRepository {
                 sql.append(" AND LOWER(searchable_text) LIKE ?");
                 parameters.add("%" + normalized.query().toLowerCase() + "%");
             }
-            sql.append(" AND current_bid >= ? AND current_bid <= ?");
+            sql.append(" AND (CASE WHEN current_bid > 0 THEN current_bid ELSE starting_price END) >= ? AND (CASE WHEN current_bid > 0 THEN current_bid ELSE starting_price END) <= ?");
             parameters.add(normalized.minPrice());
             parameters.add(normalized.maxPrice());
             sql.append(" LIMIT ?");
@@ -129,12 +140,12 @@ public final class SqlAuctionRepository implements AuctionRepository {
 
     @Override
     public CompletableFuture<List<Auction>> findBySeller(UUID sellerId) {
-        return search(new AuctionFilter("", AuctionCategory.ALL, null, 0.0D, Double.MAX_VALUE, sellerId, false, false), Integer.MAX_VALUE);
+        return search(new AuctionFilter("", AuctionCategory.ALL, null, 0.0D, Double.MAX_VALUE, sellerId, false, false, false, false, false, null), Integer.MAX_VALUE);
     }
 
     @Override
     public CompletableFuture<List<Auction>> claimable(UUID playerId) {
-        return search(new AuctionFilter("", AuctionCategory.ALL, null, 0.0D, Double.MAX_VALUE, playerId, true, false), Integer.MAX_VALUE);
+        return search(new AuctionFilter("", AuctionCategory.ALL, null, 0.0D, Double.MAX_VALUE, playerId, true, false, false, false, false, null), Integer.MAX_VALUE);
     }
 
     @Override
@@ -151,6 +162,38 @@ public final class SqlAuctionRepository implements AuctionRepository {
                 }
             } catch (SQLException exception) {
                 throw new IllegalStateException("Failed to load expiring auctions", exception);
+            }
+        });
+    }
+
+    @Override
+    public CompletableFuture<List<Auction>> activeAuctions() {
+        return search(AuctionFilter.defaultFilter(), Integer.MAX_VALUE);
+    }
+
+    @Override
+    public CompletableFuture<Void> adjustWatchCount(long auctionId, int delta) {
+        return CompletableFuture.runAsync(() -> {
+            try (Connection connection = databaseManager.connection(); PreparedStatement statement = connection.prepareStatement("UPDATE auctions SET watch_count = CASE WHEN watch_count + ? < 0 THEN 0 ELSE watch_count + ? END, featured_score = featured_score + (? * 4) WHERE id = ?")) {
+                statement.setInt(1, delta);
+                statement.setInt(2, delta);
+                statement.setInt(3, delta);
+                statement.setLong(4, auctionId);
+                statement.executeUpdate();
+            } catch (SQLException exception) {
+                throw new IllegalStateException("Failed to adjust watch count", exception);
+            }
+        });
+    }
+
+    @Override
+    public CompletableFuture<Void> incrementViewCount(long auctionId) {
+        return CompletableFuture.runAsync(() -> {
+            try (Connection connection = databaseManager.connection(); PreparedStatement statement = connection.prepareStatement("UPDATE auctions SET view_count = view_count + 1, featured_score = featured_score + 0.35 WHERE id = ?")) {
+                statement.setLong(1, auctionId);
+                statement.executeUpdate();
+            } catch (SQLException exception) {
+                throw new IllegalStateException("Failed to increment view count", exception);
             }
         });
     }
@@ -186,6 +229,10 @@ public final class SqlAuctionRepository implements AuctionRepository {
         statement.setBoolean(13, auction.sellerClaimed());
         statement.setBoolean(14, auction.buyerClaimed());
         statement.setString(15, auction.searchableText());
+        statement.setInt(16, auction.watchCount());
+        statement.setInt(17, auction.viewCount());
+        statement.setInt(18, auction.bidCount());
+        statement.setDouble(19, auction.featuredScore());
     }
 
     private Auction map(ResultSet resultSet) throws SQLException {
@@ -205,7 +252,11 @@ public final class SqlAuctionRepository implements AuctionRepository {
                 Instant.ofEpochMilli(resultSet.getLong("expires_at")),
                 resultSet.getBoolean("seller_claimed"),
                 resultSet.getBoolean("buyer_claimed"),
-                resultSet.getString("searchable_text")
+                resultSet.getString("searchable_text"),
+                resultSet.getInt("watch_count"),
+                resultSet.getInt("view_count"),
+                resultSet.getInt("bid_count"),
+                resultSet.getDouble("featured_score")
         );
     }
 }

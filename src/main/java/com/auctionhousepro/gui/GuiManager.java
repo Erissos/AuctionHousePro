@@ -4,8 +4,11 @@ import com.auctionhousepro.AuctionHouseProPlugin;
 import com.auctionhousepro.config.ConfigManager;
 import com.auctionhousepro.i18n.LocaleManager;
 import com.auctionhousepro.model.Auction;
+import com.auctionhousepro.model.AuctionBidRecord;
+import com.auctionhousepro.model.AuctionCategory;
 import com.auctionhousepro.model.AuctionFilter;
 import com.auctionhousepro.model.AuctionSortMode;
+import com.auctionhousepro.model.SellerProfile;
 import com.auctionhousepro.service.impl.AuctionServiceImpl;
 import com.auctionhousepro.util.TimeUtil;
 import net.kyori.adventure.text.Component;
@@ -32,9 +35,11 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Collectors;
 
 public final class GuiManager implements Listener {
     private final AuctionHouseProPlugin plugin;
@@ -55,8 +60,13 @@ public final class GuiManager implements Listener {
     }
 
     public void openBrowser(Player player) {
+        openBrowser(player, AuctionFilter.defaultFilter());
+    }
+
+    public void openBrowser(Player player, AuctionFilter filter) {
         MenuSession session = sessions.computeIfAbsent(player.getUniqueId(), uuid -> new MenuSession(MenuType.BROWSER, AuctionFilter.defaultFilter(), 0));
         session.type = MenuType.BROWSER;
+        session.filter = filter.withPageDefaults();
         session.page = 0;
         render(player, session);
     }
@@ -71,6 +81,17 @@ public final class GuiManager implements Listener {
     public void openPlayerListings(Player player) {
         MenuSession session = sessions.computeIfAbsent(player.getUniqueId(), uuid -> new MenuSession(MenuType.LISTINGS, AuctionFilter.defaultFilter(), 0));
         session.type = MenuType.LISTINGS;
+        session.page = 0;
+        render(player, session);
+    }
+
+    public void openWatched(Player player) {
+        openBrowser(player, AuctionFilter.defaultFilter().toggleFavorites(player.getUniqueId()));
+    }
+
+    public void openAdmin(Player player) {
+        MenuSession session = sessions.computeIfAbsent(player.getUniqueId(), uuid -> new MenuSession(MenuType.ADMIN, AuctionFilter.defaultFilter(), 0));
+        session.type = MenuType.ADMIN;
         session.page = 0;
         render(player, session);
     }
@@ -120,7 +141,11 @@ public final class GuiManager implements Listener {
         placeButton(inventory, menus.getInt(menuKey + ".refresh-slot", -1), Material.SUNFLOWER, localeManager.string(localeManager.playerLocale(player), "gui.button-refresh"));
         placeButton(inventory, menus.getInt("browser.claims-slot", -1), Material.CHEST, localeManager.string(localeManager.playerLocale(player), "gui.button-claims"));
         placeButton(inventory, menus.getInt("browser.player-listings-slot", -1), Material.BOOK, localeManager.string(localeManager.playerLocale(player), "gui.button-player-listings"));
-        placeButton(inventory, menus.getInt("browser.sort-slot", -1), Material.HOPPER, localeManager.string(localeManager.playerLocale(player), "gui.button-sort").replace("<mode>", prettySort(session.filter.sortMode())));
+        placeButton(inventory, menus.getInt("browser.sort-slot", -1), Material.HOPPER, localeManager.string(localeManager.playerLocale(player), "gui.button-sort").replace("<mode>", prettySort(player, session.filter.sortMode())));
+        placeButton(inventory, menus.getInt("browser.watchlist-slot", 37), Material.HEART_OF_THE_SEA, localeManager.string(localeManager.playerLocale(player), "gui.button-watchlist"));
+        placeButton(inventory, menus.getInt("browser.category-slot", 38), Material.COMPASS, localeManager.string(localeManager.playerLocale(player), "gui.button-category").replace("<category>", localizedCategory(player, session.filter.category())));
+        placeButton(inventory, menus.getInt("browser.featured-slot", 41), Material.NETHER_STAR, localeManager.string(localeManager.playerLocale(player), "gui.button-featured").replace("<state>", onOff(player, session.filter.featuredOnly())));
+        placeButton(inventory, menus.getInt("browser.buy-now-slot", 43), Material.GOLD_INGOT, localeManager.string(localeManager.playerLocale(player), "gui.button-buy-now-filter").replace("<state>", onOff(player, session.filter.buyNowOnly())));
 
         if (requiresNewInventory || player.getOpenInventory().getTopInventory() != inventory) {
             player.openInventory(inventory);
@@ -174,8 +199,31 @@ public final class GuiManager implements Listener {
             return;
         }
         if (slot == menus.getInt("browser.sort-slot", -1)) {
-            session.filter = new AuctionFilter(session.filter.query(), session.filter.category(), nextSort(session.filter.sortMode()), session.filter.minPrice(), session.filter.maxPrice(), session.filter.sellerId(), session.filter.claimsOnly(), session.filter.activeOnly());
+            session.filter = session.filter.withSort(nextSort(session.filter.sortMode()));
             playSound(player, configManager.menuClickSound(), 0.7F, 1.3F);
+            render(player, session);
+            return;
+        }
+        if (slot == menus.getInt("browser.watchlist-slot", 37)) {
+            playSound(player, configManager.menuClickSound(), 0.75F, 1.2F);
+            openWatched(player);
+            return;
+        }
+        if (slot == menus.getInt("browser.category-slot", 38)) {
+            session.filter = session.filter.withCategory(nextCategory(session.filter.category()));
+            playSound(player, configManager.menuClickSound(), 0.75F, 1.1F);
+            render(player, session);
+            return;
+        }
+        if (slot == menus.getInt("browser.featured-slot", 41)) {
+            session.filter = session.filter.toggleFeatured();
+            playSound(player, configManager.menuClickSound(), 0.75F, 1.1F);
+            render(player, session);
+            return;
+        }
+        if (slot == menus.getInt("browser.buy-now-slot", 43)) {
+            session.filter = session.filter.toggleBuyNowOnly();
+            playSound(player, configManager.menuClickSound(), 0.75F, 1.1F);
             render(player, session);
             return;
         }
@@ -185,12 +233,71 @@ public final class GuiManager implements Listener {
             return;
         }
 
+        auctionService.recordView(player, auctionId);
+
         if (session.type == MenuType.CLAIMS) {
             playSound(player, configManager.menuActionSound(), 0.8F, 1.15F);
             auctionService.claim(player, auctionId).thenAccept(success -> {
                 if (success) {
                     render(player, session);
                 }
+            });
+            return;
+        }
+
+        if (session.type == MenuType.ADMIN) {
+            if (event.getClick() == ClickType.RIGHT) {
+                playSound(player, configManager.menuActionSound(), 0.8F, 1.2F);
+                auctionService.returnListing(player, auctionId).thenAccept(success -> render(player, session)).exceptionally(throwable -> {
+                    player.sendMessage(localeManager.exception(player, throwable));
+                    return null;
+                });
+            } else {
+                playSound(player, configManager.menuActionSound(), 0.8F, 1.0F);
+                auctionService.forceExpire(player, auctionId).thenAccept(success -> render(player, session)).exceptionally(throwable -> {
+                    player.sendMessage(localeManager.exception(player, throwable));
+                    return null;
+                });
+            }
+            return;
+        }
+
+        if (event.getClick() == ClickType.SHIFT_RIGHT) {
+            playSound(player, configManager.menuActionSound(), 0.8F, 1.25F);
+            auctionService.toggleWatch(player.getUniqueId(), auctionId, null).thenAccept(watching -> render(player, session)).exceptionally(throwable -> {
+                player.sendMessage(localeManager.exception(player, throwable));
+                return null;
+            });
+            return;
+        }
+
+        if (event.getClick() == ClickType.MIDDLE) {
+            playSound(player, configManager.menuActionSound(), 0.8F, 1.35F);
+            auctionService.findAuction(auctionId).thenCompose(optional -> optional.map(auction -> auctionService.bidHistory(auctionId, 5).thenApply(history -> new AuctionInspection(auction, history))).orElseGet(() -> java.util.concurrent.CompletableFuture.completedFuture(null))).thenAccept(payload -> {
+                if (payload == null) {
+                    return;
+                }
+                player.sendMessage(localeManager.message(player, "messages.gui-detail-header", Placeholder.parsed("id", String.valueOf(payload.auction().id())), Placeholder.parsed("item", payload.auction().item().getType().name())));
+                payload.history().stream().limit(3).forEach(entry -> player.sendMessage(localeManager.message(player, "messages.gui-detail-line", Placeholder.parsed("bidder", nameOf(entry.bidderId())), Placeholder.parsed("amount", String.format(java.util.Locale.US, "%.2f", entry.amount())))));
+            }).exceptionally(throwable -> {
+                player.sendMessage(localeManager.exception(player, throwable));
+                return null;
+            });
+            return;
+        }
+
+        if (event.getClick() == ClickType.SHIFT_LEFT) {
+            playSound(player, configManager.menuActionSound(), 0.8F, 1.2F);
+            auctionService.findAuction(auctionId).thenCompose(optional -> optional.map(auction -> auctionService.sellerProfile(auction.sellerId()).thenApply(profile -> new SellerInspection(auction, profile))).orElseGet(() -> java.util.concurrent.CompletableFuture.completedFuture(null))).thenAccept(payload -> {
+                if (payload == null) {
+                    return;
+                }
+                SellerProfile profile = payload.profile();
+                player.sendMessage(localeManager.message(player, "messages.gui-profile-header", Placeholder.parsed("seller", nameOf(payload.auction().sellerId()))));
+                player.sendMessage(localeManager.message(player, "messages.gui-profile-line", Placeholder.parsed("active", String.valueOf(profile.activeListings())), Placeholder.parsed("sales", String.valueOf(profile.completedSales())), Placeholder.parsed("watchers", String.valueOf(profile.watchers()))));
+            }).exceptionally(throwable -> {
+                player.sendMessage(localeManager.exception(player, throwable));
+                return null;
             });
             return;
         }
@@ -244,12 +351,20 @@ public final class GuiManager implements Listener {
         List<Component> lore = new ArrayList<>(localeManager.messageList(viewer, "gui.browse-lore",
                 Placeholder.parsed("seller", nameOf(auction.sellerId())),
                 Placeholder.parsed("current_bid", String.format("%.2f", auction.displayPrice())),
-                Placeholder.parsed("buy_now", auction.hasBuyNow() ? String.format("%.2f", auction.buyNowPrice()) : "N/A"),
+            Placeholder.parsed("buy_now", auction.hasBuyNow() ? String.format("%.2f", auction.buyNowPrice()) : localized(viewer, "values.not-available")),
                 Placeholder.parsed("time_left", TimeUtil.format(auction.timeLeft())),
-                Placeholder.parsed("category", auction.category().name()),
-                Placeholder.parsed("id", String.valueOf(auction.id()))));
+            Placeholder.parsed("category", localizedCategory(viewer, auction.category())),
+                Placeholder.parsed("id", String.valueOf(auction.id())),
+                Placeholder.parsed("watchers", String.valueOf(auction.watchCount())),
+                Placeholder.parsed("bids", String.valueOf(auction.bidCount()))));
+        if (auction.featuredScore() >= 10.0D) {
+            lore.addAll(localeManager.messageList(viewer, "gui.featured-lore"));
+        }
         if (auction.timeLeft().toSeconds() <= configManager.antiSnipeWindowSeconds()) {
             lore.addAll(localeManager.messageList(viewer, "gui.expiring-lore"));
+        }
+        if (viewer.hasPermission("auctionhousepro.admin")) {
+            lore.addAll(localeManager.messageList(viewer, "gui.admin-lore"));
         }
         meta.lore(lore);
         meta.addItemFlags(ItemFlag.HIDE_ATTRIBUTES);
@@ -315,9 +430,14 @@ public final class GuiManager implements Listener {
         return modes.get((modes.indexOf(current) + 1) % modes.size());
     }
 
+    private AuctionCategory nextCategory(AuctionCategory current) {
+        List<AuctionCategory> categories = Arrays.asList(AuctionCategory.values());
+        return categories.get((categories.indexOf(current) + 1) % categories.size());
+    }
+
     private String nameOf(UUID playerId) {
         if (playerId == null) {
-            return "None";
+            return localizedRaw(configManager.defaultLocale(), "values.none");
         }
         if (Bukkit.getOfflinePlayer(playerId).getName() != null) {
             return Bukkit.getOfflinePlayer(playerId).getName();
@@ -325,14 +445,24 @@ public final class GuiManager implements Listener {
         return playerId.toString();
     }
 
-    private String prettySort(AuctionSortMode mode) {
-        return switch (mode) {
-            case NEWEST -> "Newest";
-            case PRICE_ASC -> "Lowest Price";
-            case PRICE_DESC -> "Highest Price";
-            case ENDING_SOON -> "Ending Soon";
-            case RARITY -> "Rarity";
-        };
+    private String prettySort(Player player, AuctionSortMode mode) {
+        return localized(player, "sort-modes." + mode.name().toLowerCase(Locale.ROOT));
+    }
+
+    private String onOff(Player player, boolean enabled) {
+        return localized(player, enabled ? "values.enabled" : "values.disabled");
+    }
+
+    private String localized(Player player, String path) {
+        return localeManager.string(localeManager.playerLocale(player), path);
+    }
+
+    private String localizedRaw(String locale, String path) {
+        return localeManager.string(locale, path);
+    }
+
+    private String localizedCategory(Player player, AuctionCategory category) {
+        return localized(player, "categories." + category.name().toLowerCase(Locale.ROOT));
     }
 
     private void playSound(Player player, Sound sound, float volume, float pitch) {
@@ -368,5 +498,11 @@ public final class GuiManager implements Listener {
         public Inventory getInventory() {
             return null;
         }
+    }
+
+    private record AuctionInspection(Auction auction, List<AuctionBidRecord> history) {
+    }
+
+    private record SellerInspection(Auction auction, SellerProfile profile) {
     }
 }

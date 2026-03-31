@@ -1,7 +1,9 @@
 package com.auctionhousepro.config;
 
 import org.bukkit.Material;
+import org.bukkit.OfflinePlayer;
 import org.bukkit.Sound;
+import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.plugin.java.JavaPlugin;
@@ -80,12 +82,24 @@ public final class ConfigManager {
         return config.getDouble("auction.listing-fee", 25.0D);
     }
 
+    public double listingFee(OfflinePlayer player) {
+        return listingFee() * segmentMultiplier(player, "listing-fee-multiplier", 1.0D);
+    }
+
     public double taxRate() {
         return config.getDouble("auction.tax-rate", 0.02D);
     }
 
+    public double taxRate(OfflinePlayer player) {
+        return taxRate() * segmentMultiplier(player, "tax-rate-multiplier", 1.0D);
+    }
+
     public double commissionRate() {
         return config.getDouble("auction.commission-rate", 0.05D);
+    }
+
+    public double commissionRate(OfflinePlayer player) {
+        return commissionRate() * segmentMultiplier(player, "commission-rate-multiplier", 1.0D);
     }
 
     public int defaultDurationMinutes() {
@@ -106,6 +120,10 @@ public final class ConfigManager {
 
     public int maxActiveListings() {
         return config.getInt("auction.max-active-listings", 30);
+    }
+
+    public int maxActiveListings(OfflinePlayer player) {
+        return segmentInt(player, "max-active-listings", maxActiveListings());
     }
 
     public long antiSnipeWindowSeconds() {
@@ -130,6 +148,22 @@ public final class ConfigManager {
 
     public double rareBroadcastThreshold() {
         return config.getDouble("auction.broadcast-rare-threshold", 50000.0D);
+    }
+
+    public boolean rareListingBroadcastEnabled() {
+        return config.getBoolean("auction.broadcast-rare-listings", true);
+    }
+
+    public boolean highSaleBroadcastEnabled() {
+        return config.getBoolean("auction.broadcast-high-sales", true);
+    }
+
+    public String activeSegmentName(OfflinePlayer player) {
+        ConfigurationSection section = matchingSegment(player);
+        if (section == null) {
+            return "default";
+        }
+        return section.getName();
     }
 
     public Set<Material> blacklistMaterials() {
@@ -227,5 +261,40 @@ public final class ConfigManager {
         } catch (IllegalArgumentException exception) {
             return fallback;
         }
+    }
+
+    private ConfigurationSection matchingSegment(OfflinePlayer player) {
+        if (!(player instanceof org.bukkit.entity.Player onlinePlayer)) {
+            return null;
+        }
+        ConfigurationSection section = config.getConfigurationSection("auction.permission-segments");
+        if (section == null) {
+            return null;
+        }
+
+        ConfigurationSection best = null;
+        int priority = Integer.MIN_VALUE;
+        for (String key : section.getKeys(false)) {
+            ConfigurationSection candidate = section.getConfigurationSection(key);
+            if (candidate == null) {
+                continue;
+            }
+            String permission = candidate.getString("permission", "");
+            if (!permission.isBlank() && onlinePlayer.hasPermission(permission) && candidate.getInt("priority", 0) >= priority) {
+                best = candidate;
+                priority = candidate.getInt("priority", 0);
+            }
+        }
+        return best;
+    }
+
+    private double segmentMultiplier(OfflinePlayer player, String key, double fallback) {
+        ConfigurationSection section = matchingSegment(player);
+        return section == null ? fallback : section.getDouble(key, fallback);
+    }
+
+    private int segmentInt(OfflinePlayer player, String key, int fallback) {
+        ConfigurationSection section = matchingSegment(player);
+        return section == null ? fallback : section.getInt(key, fallback);
     }
 }
