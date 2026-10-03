@@ -15,6 +15,8 @@ import org.bukkit.plugin.java.JavaPlugin;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -76,10 +78,11 @@ public final class LocaleManager {
     public String string(String locale, String path) {
         YamlConfiguration selected = locales.getOrDefault(normalize(locale), locales.get(normalize(configManager.fallbackLocale())));
         if (selected != null && selected.contains(path)) {
-            return selected.getString(path, "<red>Missing message: " + path + "</red>");
+            return selected.getString(path);
         }
         YamlConfiguration fallback = locales.get(normalize(configManager.fallbackLocale()));
-        return fallback == null ? "<red>Missing locale</red>" : fallback.getString(path, "<red>Missing message: " + path + "</red>");
+        String value = fallback == null ? null : fallback.getString(path);
+        return value == null ? "<red>Missing message: " + path + "</red>" : value;
     }
 
     public List<String> stringList(String locale, String path) {
@@ -115,25 +118,41 @@ public final class LocaleManager {
     }
 
     public String playerLocale(Player player) {
-        return playerLocales.getOrDefault(player.getUniqueId(), normalize(configManager.defaultLocale()));
+        return playerLocale(player.getUniqueId());
     }
 
     public String playerLocale(UUID playerId) {
-        return playerLocales.getOrDefault(playerId, normalize(configManager.defaultLocale()));
+        String selected = resolveLocale(playerLocales.get(playerId));
+        if (selected != null) return selected;
+        String fallback = resolveLocale(configManager.defaultLocale());
+        return fallback == null ? normalize(configManager.fallbackLocale()) : fallback;
     }
 
     public void setPlayerLocale(UUID playerId, String locale) {
-        String normalized = normalize(locale);
-        if (!locales.containsKey(normalized)) {
-            normalized = normalize(configManager.defaultLocale());
-        }
+        String normalized = resolveLocale(locale);
+        if (normalized == null) throw new IllegalArgumentException("Unknown language: " + locale);
         playerLocales.put(playerId, normalized);
         playerLocaleConfig.set(playerId.toString(), normalized);
         savePlayerLocales();
     }
 
     public Collection<String> availableLocales() {
-        return locales.keySet();
+        return locales.keySet().stream().sorted().toList();
+    }
+
+    public String resolveLocale(String code) {
+        if (code == null || code.isBlank()) return null;
+        String normalized = normalize(code);
+        if (locales.containsKey(normalized)) return normalized;
+        List<String> matches = locales.keySet().stream().filter(locale -> locale.startsWith(normalized + "_")).sorted().toList();
+        return matches.size() == 1 ? matches.getFirst() : null;
+    }
+
+    public List<String> availableLanguages() {
+        return locales.keySet().stream().map(locale -> {
+            String base = locale.split("_", 2)[0];
+            return resolveLocale(base) == null ? locale : base;
+        }).distinct().sorted().toList();
     }
 
     private void loadLocales() {
@@ -149,7 +168,16 @@ public final class LocaleManager {
 
         for (File file : files) {
             String locale = file.getName().replace(".yml", "");
-            locales.put(normalize(locale), YamlConfiguration.loadConfiguration(file));
+            YamlConfiguration language = YamlConfiguration.loadConfiguration(file);
+            var resource = plugin.getResource("lang/" + file.getName());
+            if (resource != null) {
+                try (var reader = new InputStreamReader(resource, StandardCharsets.UTF_8)) {
+                    language.setDefaults(YamlConfiguration.loadConfiguration(reader));
+                } catch (IOException exception) {
+                    throw new IllegalStateException("Cannot load language defaults", exception);
+                }
+            }
+            locales.put(normalize(locale), language);
         }
     }
 

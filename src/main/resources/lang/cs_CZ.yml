@@ -46,6 +46,9 @@ statuses:
   cancelled: 'Cancelled'
   expired: 'Expired'
 messages:
+  general-help: "<gray>Příkazy: /<command> menu | /<command> help | /<command> language [code] | /<command> reload</gray>"
+  language-info: "<gray>Tvůj jazyk: <language>. Dostupné: <languages>.</gray>"
+  language-invalid: "<red>Neznámý jazyk. Dostupné: <languages>.</red>"
   usage-watch: '<!italic><#ff6b6b>Usage: /ah watch <id> [targetPrice]'
   usage-detail: '<!italic><#ff6b6b>Usage: /ah detail <id>'
   usage-history: '<!italic><#ff6b6b>Usage: /ah history <id>'
@@ -143,7 +146,7 @@ messages:
     - '<!italic><#d8e6f0>/ah bid <id> <amount></#d8e6f0>'
     - '<!italic><#d8e6f0>/ah buy <id></#d8e6f0>'
     - '<!italic><#d8e6f0>/ah claim [id]</#d8e6f0>'
-    - '<!italic><#d8e6f0>/ah locale <code></#d8e6f0>'
+    - '<!italic><#d8e6f0>/ah language <code></#d8e6f0>'
     - '<!italic><#d8e6f0>/ah admin <reload|remove></#d8e6f0>'
 gui:
   featured-lore:

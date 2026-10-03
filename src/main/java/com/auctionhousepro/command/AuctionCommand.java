@@ -15,6 +15,7 @@ import com.auctionhousepro.model.SellerProfile;
 import com.auctionhousepro.service.impl.AuctionServiceImpl;
 import com.auctionhousepro.util.DurationParser;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
+import net.kyori.adventure.text.minimessage.tag.resolver.TagResolver;
 import org.bukkit.Bukkit;
 import org.bukkit.OfflinePlayer;
 import org.bukkit.command.Command;
@@ -28,6 +29,7 @@ import java.time.Duration;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
@@ -49,6 +51,27 @@ public final class AuctionCommand implements CommandExecutor, TabCompleter {
 
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
+        String subcommand = args.length == 0 ? "menu" : args[0].toLowerCase(Locale.ROOT);
+        String locale = sender instanceof Player player ? localeManager.playerLocale(player) : configManager.defaultLocale();
+        if (sender instanceof Player && !sender.hasPermission("auctionhousepro.use")) {
+            sender.sendMessage(localeManager.message(locale, "messages.no-permission", TagResolver.empty()));
+            return true;
+        }
+        if (subcommand.equals("help")) {
+            sender.sendMessage(localeManager.message(locale, "messages.general-help", Placeholder.unparsed("command", label)));
+            localeManager.messageList(locale, "messages.help", TagResolver.empty()).forEach(sender::sendMessage);
+            return true;
+        }
+        if (subcommand.equals("reload") || (subcommand.equals("admin") && args.length > 1 && args[1].equalsIgnoreCase("reload"))) {
+            if (!sender.hasPermission("auctionhousepro.reload") && !sender.hasPermission("auctionhousepro.admin")) {
+                sender.sendMessage(localeManager.message(locale, "messages.no-permission", TagResolver.empty()));
+                return true;
+            }
+            configManager.reload();
+            localeManager.reload();
+            sender.sendMessage(localeManager.message(locale, "messages.reload-complete", TagResolver.empty()));
+            return true;
+        }
         if (!(sender instanceof Player player)) {
             sender.sendRichMessage(localeManager.string(configManager.defaultLocale(), "messages.player-only"));
             return true;
@@ -57,7 +80,7 @@ public final class AuctionCommand implements CommandExecutor, TabCompleter {
             player.sendMessage(localeManager.message(player, "messages.no-permission"));
             return true;
         }
-        if (args.length == 0) {
+        if (subcommand.equals("menu")) {
             guiManager.openBrowser(player);
             return true;
         }
@@ -68,7 +91,7 @@ public final class AuctionCommand implements CommandExecutor, TabCompleter {
             case "buy" -> handleBuy(player, args);
             case "claim" -> handleClaim(player, args);
             case "delivery" -> handleDelivery(player, args);
-            case "locale" -> handleLocale(player, args);
+            case "language", "lang", "locale" -> handleLocale(player, args);
             case "listings" -> guiManager.openPlayerListings(player);
             case "claims" -> guiManager.openClaims(player);
             case "search" -> handleSearch(player, args);
@@ -183,11 +206,19 @@ public final class AuctionCommand implements CommandExecutor, TabCompleter {
 
     private void handleLocale(Player player, String[] args) {
         if (args.length < 2) {
-            player.sendMessage(localeManager.message(player, "messages.available-locales", Placeholder.parsed("locales", String.join(", ", localeManager.availableLocales()))));
+            player.sendMessage(localeManager.message(player, "messages.language-info",
+                    Placeholder.unparsed("language", localeManager.playerLocale(player)),
+                    Placeholder.unparsed("languages", String.join(", ", localeManager.availableLanguages()))));
             return;
         }
-        localeManager.setPlayerLocale(player.getUniqueId(), args[1]);
-        player.sendMessage(localeManager.message(player, "messages.locale-changed", Placeholder.parsed("locale", args[1])));
+        String requested = localeManager.resolveLocale(args[1]);
+        if (requested == null) {
+            player.sendMessage(localeManager.message(player, "messages.language-invalid",
+                    Placeholder.unparsed("languages", String.join(", ", localeManager.availableLanguages()))));
+            return;
+        }
+        localeManager.setPlayerLocale(player.getUniqueId(), requested);
+        player.sendMessage(localeManager.message(player, "messages.locale-changed", Placeholder.unparsed("locale", requested)));
     }
 
     private void handleSearch(Player player, String[] args) {
@@ -372,14 +403,24 @@ public final class AuctionCommand implements CommandExecutor, TabCompleter {
 
     @Override
     public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
+        if (sender instanceof Player && !sender.hasPermission("auctionhousepro.use")) return List.of();
+        List<String> suggestions = suggestions(sender, args);
+        String prefix = args.length == 0 ? "" : args[args.length - 1].toLowerCase(Locale.ROOT);
+        return suggestions.stream().filter(value -> value.toLowerCase(Locale.ROOT).startsWith(prefix)).sorted().toList();
+    }
+
+    private List<String> suggestions(CommandSender sender, String[] args) {
         if (args.length == 1) {
-            return List.of("sell", "bid", "buy", "claim", "delivery", "locale", "listings", "claims", "search", "watch", "watched", "detail", "profile", "history", "offer", "offers", "admin", "help");
+            List<String> result = new ArrayList<>(List.of("menu", "help", "language", "sell", "bid", "buy", "claim", "delivery", "listings", "claims", "search", "watch", "watched", "detail", "profile", "history", "offer", "offers"));
+            if (sender.hasPermission("auctionhousepro.admin") || sender.hasPermission("auctionhousepro.reload")) result.add("reload");
+            if (sender.hasPermission("auctionhousepro.admin")) result.add("admin");
+            return result;
         }
-        if (args.length == 2 && args[0].equalsIgnoreCase("admin")) {
+        if (args.length == 2 && args[0].equalsIgnoreCase("admin") && sender.hasPermission("auctionhousepro.admin")) {
             return List.of("reload", "menu", "remove", "expire", "return", "stats", "audit");
         }
-        if (args.length == 2 && args[0].equalsIgnoreCase("locale")) {
-            return List.copyOf(localeManager.availableLocales());
+        if (args.length == 2 && List.of("language", "lang", "locale").contains(args[0].toLowerCase(Locale.ROOT))) {
+            return args[0].equalsIgnoreCase("locale") ? List.copyOf(localeManager.availableLocales()) : localeManager.availableLanguages();
         }
         if (args.length == 2 && args[0].equalsIgnoreCase("offers")) {
             return List.of("incoming", "outgoing", "accept", "reject", "cancel");

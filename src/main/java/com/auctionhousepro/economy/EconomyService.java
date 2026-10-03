@@ -36,6 +36,10 @@ public final class EconomyService {
     }
 
     private Economy resolveEconomy() {
+        if (!Bukkit.getPluginManager().isPluginEnabled("Vault")) {
+            plugin.getLogger().warning("Vault is not installed. Economy-backed actions will be disabled.");
+            return null;
+        }
         RegisteredServiceProvider<Economy> provider = Bukkit.getServicesManager().getRegistration(Economy.class);
         if (provider == null) {
             plugin.getLogger().warning("Vault economy provider was not found. Economy-backed actions will be disabled.");

@@ -45,6 +45,9 @@ statuses:
   cancelled: 'Cancelled'
   expired: 'Expired'
 messages:
+  general-help: "<gray>Commands: /<command> menu | /<command> help | /<command> language [code] | /<command> reload</gray>"
+  language-info: "<gray>Current language: <language>. Available: <languages>.</gray>"
+  language-invalid: "<red>Unknown language. Available: <languages>.</red>"
   no-permission: '<!italic><#ff6b6b>You do not have permission to do that.'
   player-only: '<!italic><#ff6b6b>This command can only be used by players.'
   unknown-subcommand: '<!italic><#ff6b6b>Unknown subcommand. Use <#62d2ff>/ah help</#62d2ff>.'
@@ -146,7 +149,7 @@ messages:
     - '<!italic><#d8e6f0>/ah watch <id> [targetPrice] / /ah watched</#d8e6f0>'
     - '<!italic><#d8e6f0>/ah detail <id> / /ah history <id> / /ah profile [player]</#d8e6f0>'
     - '<!italic><#d8e6f0>/ah offer <id> <amount> / /ah offers ...</#d8e6f0>'
-    - '<!italic><#d8e6f0>/ah locale <code></#d8e6f0>'
+    - '<!italic><#d8e6f0>/ah language <code></#d8e6f0>'
     - '<!italic><#d8e6f0>/ah admin <reload|menu|remove|expire|return|stats|audit></#d8e6f0>'
 gui:
   browse-lore:

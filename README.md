@@ -1,6 +1,26 @@
 # AuctionHousePro
 
-AuctionHousePro, Paper ve Spigot 1.20+ sunucuları için geliştirilmiş modern bir açık artırma eklentisidir. Oyuncular eşya listeleyebilir, teklif verebilir, hemen satın al kullanabilir, süresi dolan veya satılan açık artırmaları teslim alabilir ve kendi istemci dili için locale seçebilir.
+AuctionHousePro, Paper 1.20.6–26.2 sunucuları için geliştirilmiş modern bir açık artırma eklentisidir. Oyuncular eşya listeleyebilir, teklif verebilir, hemen satın al kullanabilir, süresi dolan veya satılan açık artırmaları teslim alabilir ve kendi eklenti dilini seçebilir.
+
+## Sürüm 1.1.0
+
+- Yapımcı: **Erissos**.
+- Desteklenen sunucular: **Paper 1.20.6–26.2**.
+- Sunucu Java sürümü: **1.20.6–1.21.11 için Java 21**, **26.1–26.2 için Java 25**.
+- Paketle gelen dil sayısı: **13**. Tercih oyuncuya özeldir ve kalıcıdır.
+- [JAR indir](https://github.com/Erissos/AuctionHousePro/releases/tag/1.1.0) · [Sürüm notları](CHANGELOG.md) · [Doğrulanan sürümler ve test kapsamı](docs/COMPATIBILITY.md).
+
+### Ortak komut düzeni
+
+| Komut | İşlev |
+|---|---|
+| `/ah` veya `/ah menu` | Ana menüyü açar |
+| `/ah help` | Yardımı gösterir |
+| `/ah language` | Mevcut dili ve kullanılabilir kodları gösterir |
+| `/ah language tr` | Yalnızca bu oyuncunun dilini Türkçe yapar |
+| `/ah reload` | Yönetici yetkisiyle yapılandırma ve dilleri yeniler |
+
+`lang` ve `locale`, `language` komutunun takma adlarıdır. `tr`, `tr_TR` ve `tr-TR` aynı dili seçer. Geçersiz kod mevcut tercihi değiştirmez. Konsol `help` ve `reload` kullanabilir. Parametresiz dil komutu ile kurulu diller listelenir.
 
 Eklenti; SQLite ve MySQL desteği, Vault tabanlı ekonomi entegrasyonu, Discord webhook bildirimleri, çoklu dil sistemi, GUI odaklı kullanım ve diğer eklentilerin entegre olabilmesi için basit bir API/Event yüzeyi sunar.
 
@@ -20,16 +40,21 @@ Eklenti; SQLite ve MySQL desteği, Vault tabanlı ekonomi entegrasyonu, Discord 
 
 ## Gereksinimler
 
-- Java 21
-- Paper veya Spigot 1.20+
+- Paper 1.20.6–26.2
+- Sunucu Java sürümü: 1.20.6–1.21.11 için Java 21; 26.1–26.2 için Java 25 ([Paper gereksinimleri](https://docs.papermc.io/paper/getting-started/))
+- Derleme hedefi: Paper 1.20.6 API ve Java 21 bytecode
 - Vault
 - Vault ile uyumlu bir ekonomi eklentisi
 
 Not: Vault ekonomi sağlayıcısı bulunamazsa eklenti yüklenir ancak para gerektiren işlemler fiilen kullanılamaz.
 
+Yeni eşya kayıtları, Minecraft'ın sürüm yükseltirken eşya verisini dönüştürebilmesi için DataVersion içeren NBT biçiminde (`nbt:` önekiyle) saklanır. Eski Base64/Bukkit kayıtları okunmaya devam eder. Sunucu sürümünü yükseltmeden önce veritabanını ve dünyaları yedekleyin; yeni sürümde kaydedilen verilerin eski Minecraft veya eski eklenti sürümüne geri taşınması desteklenmez.
+
+Ses ayarları hem `UI_BUTTON_CLICK` gibi eski adları hem de `minecraft:ui.button.click` gibi registry anahtarlarını kabul eder.
+
 ## Desteklenen Diller
 
-Varsayılan olarak aşağıdaki locale dosyaları paketle gelir:
+**13 hazır dil paketi** aşağıdaki locale dosyalarıyla gelir:
 
 - en_US
 - tr_TR
@@ -48,13 +73,13 @@ Varsayılan olarak aşağıdaki locale dosyaları paketle gelir:
 Oyuncular oyun içinden dil değiştirebilir:
 
 ```text
-/ah locale tr_TR
+/ah language tr
 ```
 
 ## Kurulum
 
-1. Sunucunuzun Java 21 ile çalıştığını doğrulayın.
-2. Sunucuda Paper veya Spigot 1.20+ kullandığınızdan emin olun.
+1. Sunucunuzun Minecraft sürümüne uygun Java sürümüyle çalıştığını doğrulayın.
+2. Sunucuda Paper 1.20.6–26.2 kullandığınızdan emin olun.
 3. Vault ve ekonomi eklentinizi kurun.
 4. Oluşan jar dosyasını plugins klasörüne koyun.
 5. Sunucuyu başlatın.
@@ -69,7 +94,7 @@ Projeyi kaynak koddan derlemek için:
 mvn clean package
 ```
 
-Oluşan çıktı dosyası target klasörü altında yer alır.
+Kurulum JAR'ı `target/AuctionHousePro-1.1.0.jar` dosyasıdır. `original-` ile başlayan JAR sunucuya kurulmaz. Derleme çıktıları kaynak depoda izlenmez; dağıtım dosyaları GitHub Releases üzerinden yayınlanır.
 
 Bu proje Maven kullanır ve varsayılan olarak Java 21 release hedefi ile derlenir.
 
@@ -215,12 +240,14 @@ Alt komutlar:
 | Komut | Açıklama |
 | --- | --- |
 | /ah | Ana açık artırma menüsünü açar |
+| /ah menu | Ana açık artırma menüsünü açar |
+| /ah reload | Yapılandırma ve dilleri yeniler |
 | /ah help | Yardım metnini gösterir |
 | /ah sell <price> [buyNow] [30m\|2h\|1d] [increment] | Elde tutulan eşyayı satışa çıkarır |
 | /ah bid <id> <amount> | İlanda teklif verir |
 | /ah buy <id> | İlanı buy now fiyatı ile satın alır |
 | /ah claim [id] | Kazanılan veya iade edilen içerikleri teslim alır |
-| /ah locale <code> | Oyuncu dilini değiştirir |
+| /ah language [code] | Oyuncu dilini gösterir veya değiştirir; locale ve lang takma adları da çalışır |
 | /ah listings | Oyuncunun ilanlarını açar |
 | /ah claims | Claim ekranını açar |
 | /ah search <query> | Arama yapar |
@@ -235,7 +262,7 @@ Alt komutlar:
 /ah bid 17 3250
 /ah buy 17
 /ah claim
-/ah locale de_DE
+/ah language de
 /ah search diamond sword
 ```
 
@@ -245,10 +272,11 @@ Alt komutlar:
 | --- | --- | --- |
 | auctionhousepro.use | Ana kullanım izni | true |
 | auctionhousepro.admin | Yönetici komutları | op |
+| auctionhousepro.reload | Yalnızca yapılandırma yenileme yetkisi | op |
 | auctionhousepro.bypass.fees | Listeleme ücretini bypass eder | op |
 | auctionhousepro.locale | Dil değiştirme için ayrılmış yetki | true |
 
-Not: Mevcut komut akışında genel kullanım kontrolü auctionhousepro.use üzerinden yapılır. auctionhousepro.locale düğümü plugin.yml içinde tanımlıdır ve izin sisteminizde ayrıca yönetilebilir.
+Genel kullanım kontrolü auctionhousepro.use üzerinden yapılır. Reload için auctionhousepro.reload veya auctionhousepro.admin gerekir. auctionhousepro.locale, uyumluluk için tanımlı bir düğümdür; komut işleyicisi bunu ayrıca denetlemez. Dil tercihleri UUID ile player-locales.yml içinde saklanır. Eksik mesajlar JAR içinden tamamlanır; mevcut dil dosyaları korunur.
 
 ## Oyun İçi Davranışlar
 

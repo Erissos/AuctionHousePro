@@ -255,12 +255,7 @@ public final class ConfigManager {
     }
 
     private Sound sound(String path, Sound fallback) {
-        String raw = config.getString(path, fallback.name());
-        try {
-            return Sound.valueOf(raw.toUpperCase(Locale.ROOT));
-        } catch (IllegalArgumentException exception) {
-            return fallback;
-        }
+        return com.auctionhousepro.util.SoundResolver.parse(config.getString(path), fallback);
     }
 
     private ConfigurationSection matchingSegment(OfflinePlayer player) {

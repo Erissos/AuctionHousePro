@@ -45,6 +45,9 @@ statuses:
   cancelled: 'İptal Edildi'
   expired: 'Süresi Doldu'
 messages:
+  general-help: "<gray>Komutlar: /<command> menu | /<command> help | /<command> language [code] | /<command> reload</gray>"
+  language-info: "<gray>Diliniz: <language>. Kullanılabilir diller: <languages>.</gray>"
+  language-invalid: "<red>Geçersiz dil. Kullanılabilir diller: <languages>.</red>"
   no-permission: '<!italic><#ff6b6b>Bunu yapmak için yetkin yok.'
   player-only: '<!italic><#ff6b6b>Bu komut sadece oyuncular tarafından kullanılabilir.'
   unknown-subcommand: '<!italic><#ff6b6b>Bilinmeyen alt komut. <#62d2ff>/ah help</#62d2ff> kullan.'
@@ -146,7 +149,7 @@ messages:
     - '<!italic><#d8e6f0>/ah watch <id> [hedefFiyat] / /ah watched</#d8e6f0>'
     - '<!italic><#d8e6f0>/ah detail <id> / /ah history <id> / /ah profile [oyuncu]</#d8e6f0>'
     - '<!italic><#d8e6f0>/ah offer <id> <miktar> / /ah offers ...</#d8e6f0>'
-    - '<!italic><#d8e6f0>/ah locale <kod></#d8e6f0>'
+    - '<!italic><#d8e6f0>/ah language <kod></#d8e6f0>'
     - '<!italic><#d8e6f0>/ah admin <reload|menu|remove|expire|return|stats|audit></#d8e6f0>'
 gui:
   browse-lore:
