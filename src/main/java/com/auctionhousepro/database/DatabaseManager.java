@@ -21,9 +21,12 @@ public final class DatabaseManager {
     }
 
     public void initialize() {
+        if (!java.util.Set.of("sqlite","mysql").contains(configManager.databaseType())) throw new IllegalArgumentException("database.type must be sqlite or mysql");
         HikariConfig hikari = new HikariConfig();
-        hikari.setMaximumPoolSize(configManager.maxPoolSize());
-        hikari.setMinimumIdle(configManager.minIdle());
+        // The shaded JAR contains two JDBC providers; choose explicitly instead of relying on one service file.
+        hikari.setDriverClassName(isMysql() ? "com.mysql.cj.jdbc.Driver" : "org.sqlite.JDBC");
+        hikari.setMaximumPoolSize(isMysql() ? Math.max(1,configManager.maxPoolSize()) : 1);
+        hikari.setMinimumIdle(isMysql() ? Math.max(0,Math.min(configManager.minIdle(),configManager.maxPoolSize())) : 1);
         hikari.setPoolName("AuctionHouseProPool");
 
         if (configManager.databaseType().equals("mysql")) {
@@ -38,11 +41,32 @@ public final class DatabaseManager {
 
         this.dataSource = new HikariDataSource(hikari);
         createSchema();
+        try (Connection connection=connection(); Statement statement=connection.createStatement()) {
+            statement.executeUpdate("CREATE TABLE IF NOT EXISTS economy_operations (operation_id VARCHAR(200) PRIMARY KEY, player_id VARCHAR(36) NOT NULL, amount DOUBLE NOT NULL, kind VARCHAR(16) NOT NULL, state VARCHAR(24) NOT NULL, created_at BIGINT NOT NULL)");
+            if (!hasColumn(connection,"delivery_box","state")) statement.executeUpdate("ALTER TABLE delivery_box ADD COLUMN state VARCHAR(24) NOT NULL DEFAULT 'PENDING'");
+            if (!hasColumn(connection,"delivery_box","delivery_key")) statement.executeUpdate("ALTER TABLE delivery_box ADD COLUMN delivery_key VARCHAR(200)");
+            boolean deliveryIndex=false;
+            try (var indexes=connection.getMetaData().getIndexInfo(connection.getCatalog(),null,"delivery_box",true,false)) {
+                while (indexes.next()) if ("delivery_key_unique".equalsIgnoreCase(indexes.getString("INDEX_NAME"))) deliveryIndex=true;
+            }
+            if (!deliveryIndex) statement.executeUpdate("CREATE UNIQUE INDEX delivery_key_unique ON delivery_box(delivery_key)");
+            if (!isMysql()) {
+                statement.execute("PRAGMA journal_mode=WAL"); statement.execute("PRAGMA busy_timeout=10000");
+            }
+        } catch (SQLException failure) { throw new IllegalStateException("Could not migrate payment schema",failure); }
+    }
+
+    public void markUncertainDeliveries() {
+        try (Connection connection=connection(); Statement statement=connection.createStatement()) {
+            statement.executeUpdate("UPDATE delivery_box SET state='REVIEW' WHERE state='DELIVERING'");
+        } catch (SQLException failure) { throw new IllegalStateException("Cannot recover deliveries",failure); }
     }
 
     public Connection connection() throws SQLException {
         return dataSource.getConnection();
     }
+
+    public boolean isMysql() { return configManager.databaseType().equals("mysql"); }
 
     public void close() {
         if (dataSource != null && !dataSource.isClosed()) {
@@ -211,10 +235,13 @@ public final class DatabaseManager {
         }
     }
 
-    private void ensureAuctionColumn(Statement statement, String columnName, String definition) {
-        try {
-            statement.executeUpdate("ALTER TABLE auctions ADD COLUMN " + columnName + " " + definition);
-        } catch (SQLException ignored) {
+    private boolean hasColumn(Connection connection,String table,String column) throws SQLException {
+        try (var columns=connection.getMetaData().getColumns(connection.getCatalog(),null,table,column)) {
+            while (columns.next()) if (table.equalsIgnoreCase(columns.getString("TABLE_NAME")) && column.equalsIgnoreCase(columns.getString("COLUMN_NAME"))) return true;
         }
+        return false;
+    }
+    private void ensureAuctionColumn(Statement statement, String columnName, String definition) throws SQLException {
+        if (!hasColumn(statement.getConnection(),"auctions",columnName)) statement.executeUpdate("ALTER TABLE auctions ADD COLUMN " + columnName + " " + definition);
     }
 }

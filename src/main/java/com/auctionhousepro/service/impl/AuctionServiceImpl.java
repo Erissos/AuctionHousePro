@@ -14,6 +14,10 @@ import com.auctionhousepro.discord.DiscordWebhookService;
 import com.auctionhousepro.economy.EconomyService;
 import com.auctionhousepro.exception.LocalizedException;
 import com.auctionhousepro.model.Auction;
+import com.auctionhousepro.model.EconomyCredit;
+import com.auctionhousepro.model.DeliveryPayload;
+import com.auctionhousepro.economy.EconomyLedger;
+import com.auctionhousepro.service.ListingEscrowStore;
 import com.auctionhousepro.model.AuctionBidRecord;
 import com.auctionhousepro.model.AuctionCategory;
 import com.auctionhousepro.model.AuctionFilter;
@@ -68,7 +72,11 @@ public final class AuctionServiceImpl implements AuctionService {
     private final Cache<Long, Auction> auctionCache;
     private final Map<UUID, Long> bidCooldowns;
     private final Map<UUID, Long> listingCooldowns;
-    private final Map<Long, Semaphore> auctionLocks;
+    private final Map<String, CompletableFuture<?>> operationTails = new java.util.HashMap<>();
+    private final EconomyLedger ledger;
+    private final ListingEscrowStore escrow;
+    private volatile boolean ready;
+    private int paymentTaskId = -1;
     private int expireTaskId = -1;
 
     public AuctionServiceImpl(AuctionHouseProPlugin plugin,
@@ -92,17 +100,34 @@ public final class AuctionServiceImpl implements AuctionService {
         this.auctionCache = Caffeine.newBuilder().maximumSize(10000).build();
         this.bidCooldowns = new ConcurrentHashMap<>();
         this.listingCooldowns = new ConcurrentHashMap<>();
-        this.auctionLocks = new ConcurrentHashMap<>();
+        this.ledger = plugin.getEconomyLedger();
+        this.escrow = new ListingEscrowStore(plugin);
     }
 
     public void startSchedulers() {
-        this.expireTaskId = Bukkit.getScheduler().scheduleSyncRepeatingTask(plugin, this::tickExpirations, configManager.expireCheckTicks(), configManager.expireCheckTicks());
+        shutdown();
+        ledger.recover().thenCompose(unused -> onMainThread(() -> { escrow.recoverReservations(); return null; })).thenCompose(unused -> recoverEscrow()).whenComplete((unused,failure) -> {
+            ready=failure==null;
+            if (failure!=null) plugin.getLogger().severe("Payment recovery failed; monetary actions disabled: "+failure.getMessage());
+        });
+        expireTaskId=Bukkit.getScheduler().scheduleSyncRepeatingTask(plugin,this::tickExpirations,Math.max(1,configManager.expireCheckTicks()),Math.max(1,configManager.expireCheckTicks()));
+        paymentTaskId=Bukkit.getScheduler().scheduleSyncRepeatingTask(plugin,() -> {
+            if (ready) ledger.processQueued().exceptionally(failure -> { plugin.getLogger().warning("Pending payment processing failed: "+failure.getMessage()); return null; });
+        },100,100);
     }
 
+    public void rescheduleTimers() {
+        if (expireTaskId!=-1) Bukkit.getScheduler().cancelTask(expireTaskId);
+        expireTaskId=Bukkit.getScheduler().scheduleSyncRepeatingTask(plugin,this::tickExpirations,Math.max(1,configManager.expireCheckTicks()),Math.max(1,configManager.expireCheckTicks()));
+    }
+
+    public void releasePlayer(UUID player) { bidCooldowns.remove(player); listingCooldowns.remove(player); }
+
     public void shutdown() {
-        if (expireTaskId != -1) {
-            Bukkit.getScheduler().cancelTask(expireTaskId);
-        }
+        ready=false;
+        if (expireTaskId!=-1) Bukkit.getScheduler().cancelTask(expireTaskId);
+        if (paymentTaskId!=-1) Bukkit.getScheduler().cancelTask(paymentTaskId);
+        expireTaskId=-1; paymentTaskId=-1;
     }
 
     @Override
@@ -114,177 +139,112 @@ public final class AuctionServiceImpl implements AuctionService {
     }
 
     @Override
-    public CompletableFuture<Auction> createAuction(Player seller, ItemStack item, Duration duration, double startPrice, double buyNowPrice, double bidIncrement) {
-        if (item == null || item.getType().isAir()) {
-            return CompletableFuture.failedFuture(new LocalizedException("messages.hold-item"));
-        }
-        if (isCoolingDown(seller.getUniqueId(), listingCooldowns, configManager.listCooldownMillis())) {
-            return CompletableFuture.failedFuture(new LocalizedException("messages.listing-cooldown"));
-        }
-        long minutes = duration.toMinutes();
-        if (minutes < configManager.minDurationMinutes() || minutes > configManager.maxDurationMinutes()) {
-            return CompletableFuture.failedFuture(new LocalizedException("messages.invalid-duration"));
-        }
-        if (!isAllowedItem(item)) {
-            return CompletableFuture.failedFuture(new LocalizedException("messages.item-blocked"));
-        }
+    public CompletableFuture<Auction> createAuction(Player seller,ItemStack item,Duration duration,double startPrice,double buyNowPrice,double bidIncrement) {
+        if (item==null || item.getType().isAir()) return CompletableFuture.failedFuture(new LocalizedException("messages.hold-item"));
+        if (startPrice<=0 || !EconomyLedger.valid(startPrice) || !EconomyLedger.valid(buyNowPrice) || !EconomyLedger.valid(bidIncrement) || bidIncrement<=0 || (buyNowPrice>0 && buyNowPrice<startPrice)) return CompletableFuture.failedFuture(new LocalizedException("messages.invalid-number"));
+        if (duration==null || duration.toMinutes()<configManager.minDurationMinutes() || duration.toMinutes()>configManager.maxDurationMinutes()) return CompletableFuture.failedFuture(new LocalizedException("messages.invalid-duration"));
+        ItemStack snapshot=item.clone();
+        int slot=seller.getInventory().getHeldItemSlot();
+        UUID sellerId=seller.getUniqueId();
+        return serial("player:"+sellerId,() -> {
+            requireReady();
+            if (isCoolingDown(sellerId,listingCooldowns,configManager.listCooldownMillis())) return CompletableFuture.failedFuture(new LocalizedException("messages.listing-cooldown"));
+            return repository.findBySeller(sellerId).thenCompose(existing -> onMainThread(() -> {
+                if (!seller.isOnline() || seller.getInventory().getHeldItemSlot()!=slot || !snapshot.equals(seller.getInventory().getItemInMainHand())) throw new LocalizedException("messages.hold-item");
+                if (!isAllowedItem(snapshot)) throw new LocalizedException("messages.item-blocked");
+                if (existing.stream().filter(a -> a.status()==AuctionStatus.ACTIVE).count()>=configManager.maxActiveListings(seller)) throw new LocalizedException("messages.max-active-listings");
+                Auction auction=new Auction(0,sellerId,null,snapshot,buyNowPrice>0 ? AuctionType.HYBRID : AuctionType.BID,AuctionStatus.ACTIVE,AuctionCategory.fromMaterial(snapshot.getType()),startPrice,0,buyNowPrice,bidIncrement,Instant.now(),Instant.now().plus(duration),false,false,SearchTextUtil.build(snapshot),0,0,0,0).refreshFeaturedScore();
+                AuctionCreateEvent event=new AuctionCreateEvent(seller,auction); Bukkit.getPluginManager().callEvent(event);
+                if (event.isCancelled()) throw new LocalizedException("messages.action-cancelled");
+                double fee=seller.hasPermission("auctionhousepro.bypass.fees") ? 0 : configManager.listingFee(seller);
+                if (!EconomyLedger.valid(fee)) throw new LocalizedException("messages.invalid-number");
+                return new PendingAuctionInsert(auction,seller.getName(),snapshot.getType().name(),fee,slot,snapshot);
+            })).thenCompose(pending -> withDebit(sellerId,pending.listingFee(),debit -> onMainThread(() -> {
+                if (!seller.isOnline() || seller.getInventory().getHeldItemSlot()!=slot || !snapshot.equals(seller.getInventory().getItemInMainHand())) throw new LocalizedException("messages.hold-item");
+                if (escrow.pending().stream().anyMatch(entry -> entry.seller().equals(sellerId) && "REVIEW".equals(entry.state()))) throw new LocalizedException("messages.transaction-pending");
+                UUID escrowId=escrow.prepare(sellerId,snapshot,debit);
+                seller.getInventory().setItemInMainHand(null);
+                try { escrow.mark(escrowId,"REMOVED"); }
+                catch (RuntimeException failure) {
+                    // Removal and this compensation are both on the server thread; the hand cannot change in between.
+                    seller.getInventory().setItemInMainHand(snapshot.clone());
+                    try { escrow.mark(escrowId,"RESTORED"); } catch (RuntimeException markFailure) { plugin.getLogger().severe("Escrow requires review but hand was restored: "+escrowId); }
+                    throw failure;
+                }
+                return escrowId;
+            }).thenCompose(escrowId -> repository.insertWithReceipt(pending.auction(),debit).handle((inserted,failure) -> {
+                if (failure!=null) return restoreEscrow(escrowId,sellerId,snapshot,debit).handle((unused,restoreFailure) -> {
+                    if (restoreFailure!=null) plugin.getLogger().severe("Listing compensation pending in escrow "+escrowId+": "+restoreFailure.getMessage());
+                    throw new CompletionException(failure);
+                }).thenApply(unused -> inserted);
+                cacheUpdated(inserted);
+                return onMainThread(() -> {
+                    try { escrow.mark(escrowId,"COMMITTED"); } catch (RuntimeException journalFailure) { plugin.getLogger().warning("Listing receipt committed; escrow will reconcile on startup: "+escrowId); }
+                    runCreateAuctionSideEffects(sellerId,pending.sellerName(),pending.itemTypeName(),inserted); return inserted;
+                });
+            }).thenCompose(future -> future))));
+        });
+    }
 
-        double listingFee = configManager.listingFee(seller);
-        if (!seller.hasPermission("auctionhousepro.bypass.fees") && listingFee > 0.0D) {
-            if (!economyService.has(seller, listingFee) || !economyService.withdraw(seller, listingFee)) {
-                return CompletableFuture.failedFuture(new LocalizedException("messages.not-enough-money"));
-            }
-        }
-
-        return repository.findBySeller(seller.getUniqueId()).thenCompose(existing -> onMainThread(() -> {
-            long activeCount = existing.stream().filter(auction -> auction.status() == AuctionStatus.ACTIVE).count();
-            if (activeCount >= configManager.maxActiveListings(seller)) {
-                throw new LocalizedException("messages.max-active-listings");
-            }
-
-            Auction auction = new Auction(
-                    0L,
-                    seller.getUniqueId(),
-                    null,
-                    item.clone(),
-                    buyNowPrice > 0.0D ? AuctionType.HYBRID : AuctionType.BID,
-                    AuctionStatus.ACTIVE,
-                    AuctionCategory.fromMaterial(item.getType()),
-                    startPrice,
-                    0.0D,
-                    buyNowPrice,
-                    bidIncrement,
-                    Instant.now(),
-                    Instant.now().plus(duration),
-                    false,
-                    false,
-                    SearchTextUtil.build(item),
-                    0,
-                    0,
-                    0,
-                    0.0D
-            ).refreshFeaturedScore();
-
-            AuctionCreateEvent event = new AuctionCreateEvent(seller, auction);
-            Bukkit.getPluginManager().callEvent(event);
-            if (event.isCancelled()) {
-                throw new LocalizedException("messages.action-cancelled");
-            }
-
-            seller.getInventory().setItemInMainHand(null);
-            return new PendingAuctionInsert(auction, seller.getName(), item.getType().name(), listingFee);
-        })).thenCompose(pending -> repository.insert(pending.auction()).handle((inserted, throwable) -> {
-            if (throwable != null) {
-                restoreFailedListing(seller, item, pending.listingFee());
-                throw new CompletionException(throwable);
-            }
-            runCreateAuctionSideEffects(seller.getUniqueId(), pending.sellerName(), pending.itemTypeName(), inserted);
-            return inserted;
+    @Override
+    public CompletableFuture<Auction> placeBid(Player bidder,long auctionId,double amount) {
+        long started=System.currentTimeMillis();
+        if (auctionId<=0 || !EconomyLedger.valid(amount) || amount<=0) return CompletableFuture.failedFuture(new LocalizedException("messages.invalid-number"));
+        UUID playerId=bidder.getUniqueId();
+        return serial("player:"+playerId,() -> withAuctionLock(auctionId,() -> {
+            requireReady();
+            if (isCoolingDown(playerId,bidCooldowns,configManager.bidCooldownMillis())) return CompletableFuture.failedFuture(new LocalizedException("messages.bid-cooldown"));
+            return freshAuction(auctionId).thenCompose(auction -> onMainThread(() -> {
+                requireActive(auction);
+                if (auction.sellerId().equals(playerId)) throw new LocalizedException("messages.cannot-bid-own");
+                if (amount<auction.minimumNextBid()) throw new LocalizedException("messages.bid-too-low",Map.of("amount",String.format(Locale.US,"%.2f",auction.minimumNextBid())));
+                AuctionBidEvent event=new AuctionBidEvent(bidder,auction,amount); Bukkit.getPluginManager().callEvent(event);
+                if (event.isCancelled()) throw new LocalizedException("messages.action-cancelled");
+                return auction;
+            })).thenCompose(auction -> withDebit(playerId,amount,debit -> {
+                Instant expiry=auction.expiresAt();
+                if (Duration.between(Instant.now(),expiry).toSeconds()<=configManager.antiSnipeWindowSeconds()) expiry=expiry.plusSeconds(configManager.antiSnipeExtensionSeconds());
+                Auction updated=auction.withBid(playerId,amount,expiry).incrementBidCount().refreshFeaturedScore();
+                return transition(auction,updated,bidRefund(auction,"bid:"+debit),null,null,debit).thenApply(result -> {
+                    telemetryService.markBid(System.currentTimeMillis()-started);
+                    marketRepository.recordBid(auctionId,playerId,amount).exceptionally(failure -> { plugin.getLogger().warning("Bid history save failed: "+failure.getMessage()); return null; });
+                    auditLogService.append(playerId,"auction-bid","id="+auctionId+", bid="+amount);
+                    notifyWatchers(result,playerId).exceptionally(failure -> null);
+                    ledger.processQueued().exceptionally(failure -> null);
+                    return result;
+                });
+            }));
         }));
     }
 
     @Override
-    public CompletableFuture<Auction> placeBid(Player bidder, long auctionId, double amount) {
-        if (isCoolingDown(bidder.getUniqueId(), bidCooldowns, configManager.bidCooldownMillis())) {
-            return CompletableFuture.failedFuture(new LocalizedException("messages.bid-cooldown"));
-        }
-
-        long start = System.currentTimeMillis();
-        return withAuctionLock(auctionId, () -> fetchAuction(auctionId).thenCompose(auction -> onMainThread(() -> {
-            if (auction.status() != AuctionStatus.ACTIVE || auction.isExpired()) {
-                throw new LocalizedException("messages.auction-inactive");
-            }
-            if (auction.sellerId().equals(bidder.getUniqueId())) {
-                throw new LocalizedException("messages.cannot-bid-own");
-            }
-            if (amount < auction.minimumNextBid()) {
-                throw new LocalizedException("messages.bid-too-low", Map.of("amount", String.format(Locale.US, "%.2f", auction.minimumNextBid())));
-            }
-            if (!economyService.has(bidder, amount) || !economyService.withdraw(bidder, amount)) {
-                throw new LocalizedException("messages.not-enough-money");
-            }
-
-            AuctionBidEvent event = new AuctionBidEvent(bidder, auction, amount);
-            Bukkit.getPluginManager().callEvent(event);
-            if (event.isCancelled()) {
-                economyService.deposit(bidder, amount);
-                throw new LocalizedException("messages.action-cancelled");
-            }
-
-            if (auction.highestBidderId() != null && auction.currentBid() > 0.0D) {
-                economyService.deposit(Bukkit.getOfflinePlayer(auction.highestBidderId()), auction.currentBid());
-                notificationService.notify(auction.highestBidderId(), "messages.outbid", Map.of("item", auction.item().getType().name()));
-            }
-
-            Instant expiry = auction.expiresAt();
-            long remainingSeconds = Duration.between(Instant.now(), auction.expiresAt()).toSeconds();
-            if (remainingSeconds <= configManager.antiSnipeWindowSeconds()) {
-                expiry = expiry.plusSeconds(configManager.antiSnipeExtensionSeconds());
-            }
-            return auction.withBid(bidder.getUniqueId(), amount, expiry).incrementBidCount().refreshFeaturedScore();
-        })).thenCompose(updated -> repository.update(updated)
-                .thenCompose(unused -> marketRepository.recordBid(updated.id(), bidder.getUniqueId(), amount))
-                .thenCompose(unused -> repository.appendLog(bidder.getUniqueId(), "auction-bid", "id=" + updated.id() + ", bid=" + amount))
-                .thenCompose(unused -> notifyWatchers(updated, bidder.getUniqueId()))
-                .thenApply(unused -> updated))).thenApply(updated -> {
-                    cacheUpdated(updated);
-                    auditLogService.append(bidder.getUniqueId(), "auction-bid", "id=" + updated.id() + ", bid=" + amount);
-                    telemetryService.markBid(System.currentTimeMillis() - start);
-                    return updated;
-                });
+    public CompletableFuture<Auction> buyNow(Player buyer,long auctionId) {
+        UUID playerId=buyer.getUniqueId();
+        return serial("player:"+playerId,() -> withAuctionLock(auctionId,() -> {
+            requireReady();
+            return freshAuction(auctionId).thenCompose(auction -> onMainThread(() -> {
+                requireActive(auction);
+                if (!auction.hasBuyNow() || !EconomyLedger.valid(auction.buyNowPrice())) throw new LocalizedException("messages.buy-now-unavailable");
+                if (auction.sellerId().equals(playerId)) throw new LocalizedException("messages.cannot-buy-own");
+                return auction;
+            })).thenCompose(auction -> withDebit(playerId,auction.buyNowPrice(),debit -> transition(auction,auction.soldTo(playerId,auction.buyNowPrice()),bidRefund(auction,"buy:"+debit),null,null,debit)))
+                .thenApply(updated -> { ledger.processQueued().exceptionally(failure -> null); processSale(updated); return updated; });
+        }));
     }
 
     @Override
-    public CompletableFuture<Auction> buyNow(Player buyer, long auctionId) {
-        return withAuctionLock(auctionId, () -> fetchAuction(auctionId).thenCompose(auction -> onMainThread(() -> {
-            if (auction.status() != AuctionStatus.ACTIVE || !auction.hasBuyNow()) {
-                throw new LocalizedException("messages.buy-now-unavailable");
-            }
-            if (auction.sellerId().equals(buyer.getUniqueId())) {
-                throw new LocalizedException("messages.cannot-buy-own");
-            }
-            if (!economyService.has(buyer, auction.buyNowPrice()) || !economyService.withdraw(buyer, auction.buyNowPrice())) {
-                throw new LocalizedException("messages.not-enough-money");
-            }
-            if (auction.highestBidderId() != null && auction.currentBid() > 0.0D) {
-                economyService.deposit(Bukkit.getOfflinePlayer(auction.highestBidderId()), auction.currentBid());
-            }
-            return auction.soldTo(buyer.getUniqueId(), auction.buyNowPrice()).refreshFeaturedScore();
-        })).thenCompose(updated -> repository.update(updated)
-                .thenCompose(unused -> settlePendingOffers(updated.id(), 0L, true))
-                .thenApply(unused -> updated))).thenApply(updated -> {
-                    cacheUpdated(updated);
-                    processSale(updated);
-                    return updated;
-                });
-    }
-
-    @Override
-    public CompletableFuture<Boolean> cancelAuction(CommandSender actor, long auctionId) {
-        return withAuctionLock(auctionId, () -> fetchAuction(auctionId).thenCompose(auction -> onMainThread(() -> {
-            boolean admin = actor.hasPermission("auctionhousepro.admin");
-            UUID actorId = actor instanceof Player player ? player.getUniqueId() : null;
-            if (!admin && actorId != null && !auction.sellerId().equals(actorId)) {
-                throw new LocalizedException("messages.cannot-cancel-auction");
-            }
-
-            AuctionCancelEvent event = new AuctionCancelEvent(actor, auction);
-            Bukkit.getPluginManager().callEvent(event);
-            if (event.isCancelled()) {
-                throw new LocalizedException("messages.action-cancelled");
-            }
-
-            if (auction.highestBidderId() != null && auction.currentBid() > 0.0D) {
-                economyService.deposit(Bukkit.getOfflinePlayer(auction.highestBidderId()), auction.currentBid());
-            }
-            return auction.withStatus(AuctionStatus.CANCELLED);
-        })).thenCompose(updated -> repository.update(updated)
-                .thenCompose(unused -> repository.appendLog(actor instanceof Player player ? player.getUniqueId() : null, "auction-cancel", "id=" + updated.id()))
-                .thenCompose(unused -> settlePendingOffers(updated.id(), 0L, true))
-                .thenApply(unused -> true))).thenApply(success -> {
-                    auctionCache.invalidate(auctionId);
-                    return success;
-                });
+    public CompletableFuture<Boolean> cancelAuction(CommandSender actor,long auctionId) {
+        return withAuctionLock(auctionId,() -> {
+            requireReady();
+            return freshAuction(auctionId).thenCompose(auction -> onMainThread(() -> {
+                requireActive(auction);
+                if (!actor.hasPermission("auctionhousepro.admin") && (!(actor instanceof Player p) || !auction.sellerId().equals(p.getUniqueId()))) throw new LocalizedException("messages.cannot-cancel-auction");
+                AuctionCancelEvent event=new AuctionCancelEvent(actor,auction); Bukkit.getPluginManager().callEvent(event);
+                if (event.isCancelled()) throw new LocalizedException("messages.action-cancelled");
+                return auction;
+            })).thenCompose(auction -> transition(auction,auction.withStatus(AuctionStatus.CANCELLED),bidRefund(auction,"cancel:"+auctionId),null,null,null))
+                .thenApply(updated -> { ledger.processQueued().exceptionally(failure -> null); return true; });
+        });
     }
 
     @Override
@@ -307,22 +267,19 @@ public final class AuctionServiceImpl implements AuctionService {
     }
 
     @Override
-    public CompletableFuture<Boolean> claim(Player player, Long targetAuctionId) {
-        long start = System.currentTimeMillis();
-        return claimable(player.getUniqueId()).thenCompose(auctions -> {
-            List<Auction> targets = targetAuctionId == null ? auctions : auctions.stream().filter(auction -> auction.id() == targetAuctionId).toList();
-            if (targets.isEmpty()) {
-                return CompletableFuture.completedFuture(false);
-            }
-
-            List<CompletableFuture<Void>> updates = new ArrayList<>();
-            for (Auction auction : targets) {
-                updates.add(onMainThread(() -> applyClaim(player, auction)).thenCompose(updated -> repository.update(updated)));
-            }
-            return CompletableFuture.allOf(updates.toArray(CompletableFuture[]::new)).thenApply(unused -> true);
-        }).thenApply(success -> {
-            telemetryService.markClaim(System.currentTimeMillis() - start);
-            return success;
+    public CompletableFuture<Boolean> claim(Player player,Long targetAuctionId) {
+        long started=System.currentTimeMillis();
+        UUID id=player.getUniqueId();
+        return serial("player:"+id,() -> {
+            requireReady();
+            return claimable(id).thenCompose(auctions -> {
+                CompletableFuture<Boolean> chain=CompletableFuture.completedFuture(false);
+                for (Auction auction:auctions) if (targetAuctionId==null || auction.id()==targetAuctionId) {
+                    chain=chain.thenCompose(changed -> claimSingle(player,auction.id()).thenApply(next -> changed||next));
+                }
+                return chain;
+            }).thenCompose(changed -> claimDeliveryUnlocked(player,null).thenApply(delivered -> changed||delivered))
+                .thenApply(success -> { if (success) telemetryService.markClaim(System.currentTimeMillis()-started); ledger.processQueued().exceptionally(failure -> null); return success; });
         });
     }
 
@@ -392,38 +349,23 @@ public final class AuctionServiceImpl implements AuctionService {
     }
 
     @Override
-    public CompletableFuture<Boolean> claimDelivery(Player player, Long deliveryId) {
-        return marketRepository.deliveries(player.getUniqueId()).thenCompose(entries -> {
-            List<DeliveryBoxEntry> targets = deliveryId == null ? entries : entries.stream().filter(entry -> entry.id() == deliveryId).toList();
-            if (targets.isEmpty()) {
-                return CompletableFuture.completedFuture(false);
-            }
-
-            List<CompletableFuture<Void>> actions = new ArrayList<>();
-            for (DeliveryBoxEntry entry : targets) {
-                actions.add(onMainThread(() -> tryClaimDelivery(player, entry)).thenCompose(claimed -> claimed ? marketRepository.removeDelivery(entry.id()) : CompletableFuture.completedFuture(null)));
-            }
-            return CompletableFuture.allOf(actions.toArray(CompletableFuture[]::new)).thenApply(unused -> true);
-        });
+    public CompletableFuture<Boolean> claimDelivery(Player player,Long deliveryId) {
+        return serial("player:"+player.getUniqueId(),() -> claimDeliveryUnlocked(player,deliveryId));
     }
 
     @Override
-    public CompletableFuture<AuctionOffer> createOffer(Player buyer, long auctionId, double amount) {
-        return withAuctionLock(auctionId, () -> fetchAuction(auctionId).thenCompose(auction -> onMainThread(() -> {
-            if (auction.status() != AuctionStatus.ACTIVE) {
-                throw new LocalizedException("messages.auction-inactive");
-            }
-            if (auction.sellerId().equals(buyer.getUniqueId())) {
-                throw new LocalizedException("messages.cannot-buy-own");
-            }
-            if (amount < auction.displayPrice()) {
-                throw new LocalizedException("messages.offer-too-low", Map.of("amount", String.format(Locale.US, "%.2f", auction.displayPrice())));
-            }
-            if (!economyService.has(buyer, amount) || !economyService.withdraw(buyer, amount)) {
-                throw new LocalizedException("messages.not-enough-money");
-            }
-            return auction;
-        })).thenCompose(auction -> marketRepository.createOffer(auction.id(), auction.sellerId(), buyer.getUniqueId(), amount).thenCompose(offer -> repository.appendLog(buyer.getUniqueId(), "auction-offer", "auction=" + offer.auctionId() + ", amount=" + offer.amount()).thenApply(unused -> offer))));
+    public CompletableFuture<AuctionOffer> createOffer(Player buyer,long auctionId,double amount) {
+        if (!EconomyLedger.valid(amount) || amount<=0) return CompletableFuture.failedFuture(new LocalizedException("messages.invalid-number"));
+        UUID id=buyer.getUniqueId();
+        return serial("player:"+id,() -> withAuctionLock(auctionId,() -> {
+            requireReady();
+            return freshAuction(auctionId).thenCompose(auction -> onMainThread(() -> {
+                requireActive(auction);
+                if (auction.sellerId().equals(id)) throw new LocalizedException("messages.cannot-buy-own");
+                if (amount<auction.displayPrice()) throw new LocalizedException("messages.offer-too-low",Map.of("amount",String.format(Locale.US,"%.2f",auction.displayPrice())));
+                return auction;
+            })).thenCompose(auction -> withDebit(id,amount,debit -> marketRepository.createOfferWithReceipt(auctionId,auction.sellerId(),id,amount,debit)));
+        }));
     }
 
     @Override
@@ -437,8 +379,12 @@ public final class AuctionServiceImpl implements AuctionService {
     }
 
     @Override
-    public CompletableFuture<Boolean> respondToOffer(CommandSender actor, long offerId, boolean accept) {
-        return marketRepository.findOffer(offerId).thenCompose(optional -> optional.map(offer -> withAuctionLock(offer.auctionId(), () -> handleOfferResponse(actor, offer, accept))).orElseGet(() -> CompletableFuture.failedFuture(new LocalizedException("messages.offer-not-found"))));
+    public CompletableFuture<Boolean> respondToOffer(CommandSender actor,long offerId,boolean accept) {
+        return marketRepository.findOffer(offerId).thenCompose(optional -> {
+            AuctionOffer original=optional.orElseThrow(() -> new LocalizedException("messages.offer-not-found"));
+            return withAuctionLock(original.auctionId(),() -> marketRepository.findOffer(offerId).thenCompose(current ->
+                handleOfferResponse(actor,current.orElseThrow(() -> new LocalizedException("messages.offer-not-found")),accept)));
+        });
     }
 
     @Override
@@ -452,34 +398,25 @@ public final class AuctionServiceImpl implements AuctionService {
     }
 
     @Override
-    public CompletableFuture<Boolean> forceExpire(CommandSender actor, long auctionId) {
-        return withAuctionLock(auctionId, () -> fetchAuction(auctionId).thenCompose(auction -> {
-            Auction finalState = auction.highestBidderId() == null ? auction.withStatus(AuctionStatus.EXPIRED) : auction.withStatus(AuctionStatus.SOLD);
-            return repository.update(finalState).thenApply(unused -> finalState);
-        }).thenApply(finalState -> {
-            cacheUpdated(finalState);
-            if (finalState.status() == AuctionStatus.SOLD) {
-                processSale(finalState);
-            }
-            auditLogService.append(actor instanceof Player player ? player.getUniqueId() : null, "auction-force-expire", "id=" + auctionId);
-            return true;
-        }));
+    public CompletableFuture<Boolean> forceExpire(CommandSender actor,long auctionId) {
+        return withAuctionLock(auctionId,() -> onMainThread(() -> {
+            if (!actor.hasPermission("auctionhousepro.admin")) throw new LocalizedException("messages.no-permission"); requireReady(); return true;
+        }).thenCompose(unused -> freshAuction(auctionId)).thenCompose(auction -> {
+            if (auction.status()!=AuctionStatus.ACTIVE) throw new LocalizedException("messages.auction-inactive");
+            Auction updated=auction.withStatus(auction.highestBidderId()==null ? AuctionStatus.EXPIRED : AuctionStatus.SOLD);
+            return transition(auction,updated,List.of(),null,null,null);
+        }).thenApply(updated -> { ledger.processQueued().exceptionally(failure -> null); if (updated.status()==AuctionStatus.SOLD) processSale(updated); return true; }));
     }
 
     @Override
-    public CompletableFuture<Boolean> returnListing(CommandSender actor, long auctionId) {
-        return withAuctionLock(auctionId, () -> fetchAuction(auctionId).thenCompose(auction -> {
-            if (auction.highestBidderId() != null && auction.currentBid() > 0.0D) {
-                economyService.deposit(Bukkit.getOfflinePlayer(auction.highestBidderId()), auction.currentBid());
-            }
-            return repository.update(auction.withStatus(AuctionStatus.CANCELLED))
-                    .thenCompose(unused -> marketRepository.storeDelivery(auction.sellerId(), auction.item(), auction.id(), "admin-return"))
-                    .thenApply(unused -> true);
-        }).thenApply(success -> {
-            auditLogService.append(actor instanceof Player player ? player.getUniqueId() : null, "auction-return", "id=" + auctionId);
-            auctionCache.invalidate(auctionId);
-            return success;
-        }));
+    public CompletableFuture<Boolean> returnListing(CommandSender actor,long auctionId) {
+        return withAuctionLock(auctionId,() -> onMainThread(() -> {
+            if (!actor.hasPermission("auctionhousepro.admin")) throw new LocalizedException("messages.no-permission"); requireReady(); return true;
+        }).thenCompose(unused -> freshAuction(auctionId)).thenCompose(auction -> {
+            if (auction.status()!=AuctionStatus.ACTIVE) throw new LocalizedException("messages.auction-inactive");
+            Auction updated=auction.markSellerClaimed().withStatus(AuctionStatus.CLAIMED);
+            return transition(auction,updated,bidRefund(auction,"return:"+auctionId),null,new DeliveryPayload(auction.sellerId(),auction.item(),auction.id(),"admin-return"),null);
+        }).thenApply(updated -> { ledger.processQueued().exceptionally(failure -> null); return true; }));
     }
 
     @Override
@@ -498,88 +435,50 @@ public final class AuctionServiceImpl implements AuctionService {
         return Optional.ofNullable(auctionCache.getIfPresent(auctionId));
     }
 
-    private CompletableFuture<Boolean> handleOfferResponse(CommandSender actor, AuctionOffer offer, boolean accept) {
-        UUID actorId = actor instanceof Player player ? player.getUniqueId() : null;
-        boolean admin = actor.hasPermission("auctionhousepro.admin");
-        boolean seller = actorId != null && actorId.equals(offer.sellerId());
-        boolean buyer = actorId != null && actorId.equals(offer.buyerId());
-        if (!admin && !seller && !buyer) {
-            return CompletableFuture.failedFuture(new LocalizedException("messages.no-permission"));
-        }
-        if (offer.status() != AuctionOfferStatus.PENDING) {
-            return CompletableFuture.failedFuture(new LocalizedException("messages.offer-no-longer-pending"));
-        }
-
-        if (accept) {
-            if (!admin && !seller) {
-                return CompletableFuture.failedFuture(new LocalizedException("messages.no-permission"));
-            }
-            return fetchAuction(offer.auctionId()).thenCompose(auction -> {
-                if (auction.status() != AuctionStatus.ACTIVE) {
-                    return CompletableFuture.failedFuture(new LocalizedException("messages.auction-inactive"));
-                }
-                if (auction.highestBidderId() != null && auction.currentBid() > 0.0D) {
-                    economyService.deposit(Bukkit.getOfflinePlayer(auction.highestBidderId()), auction.currentBid());
-                }
-                Auction sold = auction.soldTo(offer.buyerId(), offer.amount()).refreshFeaturedScore();
-                return repository.update(sold)
-                        .thenCompose(unused -> marketRepository.updateOfferStatus(offer.id(), AuctionOfferStatus.ACCEPTED))
-                        .thenCompose(unused -> settlePendingOffers(offer.auctionId(), offer.id(), false))
-                        .thenApply(unused -> sold);
-            }).thenApply(updated -> {
-                cacheUpdated(updated);
-                processSale(updated);
-                return true;
-            });
-        }
-
-        AuctionOfferStatus newStatus = buyer && !seller && !admin ? AuctionOfferStatus.CANCELLED : AuctionOfferStatus.REJECTED;
-        economyService.deposit(Bukkit.getOfflinePlayer(offer.buyerId()), offer.amount());
-        return marketRepository.updateOfferStatus(offer.id(), newStatus).thenApply(unused -> true);
-    }
-
-    private CompletableFuture<Void> settlePendingOffers(long auctionId, long keepOfferId, boolean refundAll) {
-        return marketRepository.offersForAuction(auctionId).thenCompose(offers -> {
-            List<CompletableFuture<Void>> actions = new ArrayList<>();
-            for (AuctionOffer offer : offers) {
-                if (offer.status() != AuctionOfferStatus.PENDING) {
-                    continue;
-                }
-                if (!refundAll && offer.id() == keepOfferId) {
-                    continue;
-                }
-                economyService.deposit(Bukkit.getOfflinePlayer(offer.buyerId()), offer.amount());
-                actions.add(marketRepository.updateOfferStatus(offer.id(), AuctionOfferStatus.REJECTED));
-            }
-            return CompletableFuture.allOf(actions.toArray(CompletableFuture[]::new));
+    private CompletableFuture<Boolean> handleOfferResponse(CommandSender actor,AuctionOffer offer,boolean accept) {
+        requireReady();
+        return onMainThread(() -> {
+            UUID id=actor instanceof Player player ? player.getUniqueId() : null;
+            boolean admin=actor.hasPermission("auctionhousepro.admin"), seller=offer.sellerId().equals(id), buyer=offer.buyerId().equals(id);
+            if (!admin && !seller && !buyer || accept && !admin && !seller) throw new LocalizedException("messages.no-permission");
+            if (offer.status()!=AuctionOfferStatus.PENDING) throw new LocalizedException("messages.offer-no-longer-pending");
+            return buyer&&!seller&&!admin ? AuctionOfferStatus.CANCELLED : AuctionOfferStatus.REJECTED;
+        }).thenCompose(rejection -> {
+            if (!accept) return marketRepository.rejectOfferWithRefund(offer.id(),rejection).thenApply(changed -> { ledger.processQueued().exceptionally(failure -> null); return changed; });
+            return freshAuction(offer.auctionId()).thenCompose(auction -> {
+                requireActive(auction);
+                return transition(auction,auction.soldTo(offer.buyerId(),offer.amount()),bidRefund(auction,"offer:"+offer.id()),offer.id(),null,null);
+            }).thenApply(updated -> { ledger.processQueued().exceptionally(failure -> null); processSale(updated); return true; });
         });
     }
 
+
+
     private void tickExpirations() {
-        repository.expiringBefore(System.currentTimeMillis()).thenAccept(auctions -> auctions.forEach(auction -> withAuctionLock(auction.id(), () -> fetchAuction(auction.id()).thenCompose(current -> {
-            if (current.status() != AuctionStatus.ACTIVE) {
-                return CompletableFuture.completedFuture(null);
-            }
-            Auction finalState = current.highestBidderId() == null ? current.withStatus(AuctionStatus.EXPIRED) : current.withStatus(AuctionStatus.SOLD);
-            return repository.update(finalState).thenApply(unused -> finalState);
-        }).thenApply(finalState -> {
-            if (finalState == null) {
-                return null;
-            }
-            cacheUpdated(finalState);
-            if (finalState.status() == AuctionStatus.SOLD) {
-                processSale(finalState);
-                Bukkit.getPluginManager().callEvent(new AuctionWinEvent(finalState));
-            } else {
-                notificationService.notify(finalState.sellerId(), "messages.expired-auction", Map.of("item", finalState.item().getType().name()));
-                Bukkit.getPluginManager().callEvent(new AuctionExpireEvent(finalState));
-            }
-            return null;
-        }))));
+        if (!ready) return;
+        repository.expiringBefore(System.currentTimeMillis()).thenAccept(auctions -> {
+            for (Auction original:auctions) withAuctionLock(original.id(),() -> freshAuction(original.id()).thenCompose(current -> {
+                if (current.status()!=AuctionStatus.ACTIVE || !current.isExpired()) return CompletableFuture.completedFuture(null);
+                Auction updated=current.withStatus(current.highestBidderId()==null ? AuctionStatus.EXPIRED : AuctionStatus.SOLD);
+                return transition(current,updated,List.of(),null,null,null);
+            }).thenCompose(updated -> {
+                if (updated==null) return CompletableFuture.completedFuture(null);
+                ledger.processQueued().exceptionally(failure -> null);
+                return onMainThread(() -> {
+                    if (updated.status()==AuctionStatus.SOLD) { processSale(updated); Bukkit.getPluginManager().callEvent(new AuctionWinEvent(updated)); }
+                    else { notificationService.notify(updated.sellerId(),"messages.expired-auction",Map.of("item",updated.item().getType().name())); Bukkit.getPluginManager().callEvent(new AuctionExpireEvent(updated)); }
+                    return null;
+                });
+            })).exceptionally(failure -> { plugin.getLogger().warning("Expiry transition failed: "+failure.getMessage()); return null; });
+        }).exceptionally(failure -> { plugin.getLogger().warning("Expiry query failed: "+failure.getMessage()); return null; });
     }
 
     private void processSale(Auction auction) {
+        if (!Bukkit.isPrimaryThread()) {
+            onMainThread(() -> { processSale(auction); return null; }).exceptionally(failure -> { plugin.getLogger().warning("Sale notification failed: " + failure.getMessage()); return null; }); return;
+        }
         OfflinePlayer seller = Bukkit.getOfflinePlayer(auction.sellerId());
+        telemetryService.markSale(0);
         double sellerCut = auction.currentBid() * Math.max(0.0D, 1.0D - configManager.taxRate(seller) - configManager.commissionRate(seller));
         notificationService.notify(auction.sellerId(), "messages.sold-auction", Map.of("item", auction.item().getType().name(), "amount", economyService.format(auction.currentBid())));
         if (auction.highestBidderId() != null) {
@@ -601,31 +500,11 @@ public final class AuctionServiceImpl implements AuctionService {
         }
     }
 
-    private Auction applyClaim(Player player, Auction auction) {
-        Auction updated = auction;
-        if (auction.status() == AuctionStatus.SOLD && player.getUniqueId().equals(auction.sellerId()) && !auction.sellerClaimed()) {
-            double sellerCut = auction.currentBid() * Math.max(0.0D, 1.0D - configManager.taxRate(player) - configManager.commissionRate(player));
-            economyService.deposit(player, sellerCut);
-            updated = updated.markSellerClaimed();
-        }
-        if (auction.status() == AuctionStatus.SOLD && auction.highestBidderId() != null && player.getUniqueId().equals(auction.highestBidderId()) && !auction.buyerClaimed()) {
-            giveItem(player, auction.item(), auction.id(), "won-auction");
-            updated = updated.markBuyerClaimed();
-        }
-        if ((auction.status() == AuctionStatus.EXPIRED || auction.status() == AuctionStatus.CANCELLED) && player.getUniqueId().equals(auction.sellerId()) && !auction.sellerClaimed()) {
-            giveItem(player, auction.item(), auction.id(), "returned-auction");
-            updated = updated.markSellerClaimed();
-        }
-        if ((updated.sellerClaimed() && updated.buyerClaimed()) || ((updated.status() == AuctionStatus.EXPIRED || updated.status() == AuctionStatus.CANCELLED) && updated.sellerClaimed())) {
-            updated = updated.withStatus(AuctionStatus.CLAIMED);
-        }
-        cacheUpdated(updated);
-        return updated;
-    }
+
 
     private CompletableFuture<Void> notifyWatchers(Auction auction, UUID actorId) {
         List<CompletableFuture<Void>> notifications = new ArrayList<>();
-        return marketRepository.watchSubscriptions(auction.id()).thenCompose(subscriptions -> {
+        return marketRepository.watchSubscriptions(auction.id()).thenCompose(subscriptions -> onMainThread(() -> {
             for (WatchSubscription subscription : subscriptions) {
                 if (subscription.playerId().equals(actorId)) {
                     continue;
@@ -636,22 +515,17 @@ public final class AuctionServiceImpl implements AuctionService {
                 }
             }
             return CompletableFuture.allOf(notifications.toArray(CompletableFuture[]::new));
-        });
+        })).thenCompose(future -> future);
     }
 
-    private boolean tryClaimDelivery(Player player, DeliveryBoxEntry entry) {
-        Map<Integer, ItemStack> leftovers = player.getInventory().addItem(entry.item().clone());
-        return leftovers.isEmpty();
+    private boolean tryClaimDelivery(Player player,DeliveryBoxEntry entry) {
+        if (!player.isOnline() || !fits(player,entry.item())) return false;
+        Map<Integer,ItemStack> leftovers=player.getInventory().addItem(entry.item().clone());
+        if (!leftovers.isEmpty()) throw new IllegalStateException("Inventory changed during reserved delivery "+entry.id());
+        return true;
     }
 
-    private void giveItem(Player player, ItemStack itemStack, long auctionId, String reason) {
-        Map<Integer, ItemStack> leftovers = player.getInventory().addItem(itemStack.clone());
-        if (leftovers.isEmpty()) {
-            return;
-        }
-        leftovers.values().forEach(leftover -> marketRepository.storeDelivery(player.getUniqueId(), leftover, auctionId, reason));
-        notificationService.notify(player.getUniqueId(), "messages.delivery-box-stored", Map.of("count", String.valueOf(leftovers.size())));
-    }
+
 
     private boolean isAllowedItem(ItemStack itemStack) {
         if (configManager.blacklistMaterials().contains(itemStack.getType())) {
@@ -690,18 +564,7 @@ public final class AuctionServiceImpl implements AuctionService {
         return false;
     }
 
-    private void restoreFailedListing(Player seller, ItemStack item, double listingFee) {
-        onMainThread(() -> {
-            seller.getInventory().addItem(item);
-            if (!seller.hasPermission("auctionhousepro.bypass.fees") && listingFee > 0.0D) {
-                economyService.deposit(seller, listingFee);
-            }
-            return null;
-        }).exceptionally(throwable -> {
-            plugin.getLogger().warning("Failed to restore listed item after insert error: " + throwable.getMessage());
-            return null;
-        });
-    }
+
 
     private void runCreateAuctionSideEffects(UUID sellerId, String sellerName, String itemTypeName, Auction inserted) {
         try {
@@ -735,25 +598,127 @@ public final class AuctionServiceImpl implements AuctionService {
                 .replace("<auction_id>", String.valueOf(auction.id()));
     }
 
-    private <T> CompletableFuture<T> withAuctionLock(long auctionId, Supplier<CompletableFuture<T>> action) {
-        Semaphore semaphore = auctionLocks.computeIfAbsent(auctionId, unused -> new Semaphore(1));
-        return CompletableFuture.runAsync(semaphore::acquireUninterruptibly)
-                .thenCompose(unused -> action.get())
-                .whenComplete((result, throwable) -> semaphore.release());
+    private <T> CompletableFuture<T> withAuctionLock(long auctionId,Supplier<CompletableFuture<T>> action) {
+        return serial("auction:"+auctionId,action);
     }
 
     private <T> CompletableFuture<T> onMainThread(Supplier<T> supplier) {
-        CompletableFuture<T> future = new CompletableFuture<>();
-        Bukkit.getScheduler().runTask(plugin, () -> {
-            try {
-                future.complete(supplier.get());
-            } catch (Throwable throwable) {
-                future.completeExceptionally(throwable);
-            }
-        });
+        CompletableFuture<T> future=new CompletableFuture<>();
+        if (!plugin.isEnabled()) { future.completeExceptionally(new IllegalStateException("Plugin stopped")); return future; }
+        Runnable action=() -> { try { future.complete(supplier.get()); } catch (Throwable failure) { future.completeExceptionally(failure); } };
+        if (Bukkit.isPrimaryThread()) action.run(); else Bukkit.getScheduler().runTask(plugin,action);
         return future;
     }
 
-    private record PendingAuctionInsert(Auction auction, String sellerName, String itemTypeName, double listingFee) {
+    private record PendingAuctionInsert(Auction auction, String sellerName, String itemTypeName, double listingFee, int slot, ItemStack item) {
     }
+
+    public CompletableFuture<List<String>> reviewDeliveries() { return marketRepository.reviewDeliveries(); }
+    public CompletableFuture<Void> reconcileDelivery(long id,boolean delivered) { return marketRepository.reconcileDelivery(id,delivered); }
+    public List<String> reviewEscrow() { return escrow.pending().stream().filter(entry -> "REVIEW".equals(entry.state())).map(entry -> entry.id()+" "+entry.seller()).toList(); }
+    public CompletableFuture<Void> reconcileEscrow(UUID id, boolean itemRemoved) {
+        ListingEscrowStore.Entry entry=escrow.pending().stream().filter(value -> value.id().equals(id) && "REVIEW".equals(value.state())).findFirst().orElseThrow();
+        return serial("player:"+entry.seller(), () -> itemRemoved ? restoreEscrow(entry.id(),entry.seller(),entry.item(),entry.debitId()) : onMainThread(() -> { escrow.mark(id,"RESTORED"); return null; }));
+    }
+
+    private void requireReady() { if (!ready) throw new LocalizedException("messages.transaction-pending"); }
+    private void requireActive(Auction auction) {
+        if (auction.status()!=AuctionStatus.ACTIVE || auction.isExpired()) throw new LocalizedException("messages.auction-inactive");
+    }
+    private CompletableFuture<Auction> freshAuction(long id) {
+        if (id<=0) return CompletableFuture.failedFuture(new LocalizedException("messages.invalid-number"));
+        return repository.findById(id).thenApply(found -> found.orElseThrow(() -> new LocalizedException("messages.auction-not-found")));
+    }
+    private <T> CompletableFuture<T> serial(String key,Supplier<CompletableFuture<T>> action) {
+        CompletableFuture<T> result;
+        synchronized (operationTails) {
+            CompletableFuture<?> previous=operationTails.getOrDefault(key,CompletableFuture.completedFuture(null));
+            result=previous.handle((unused,failure) -> null).thenComposeAsync(unused -> action.get());
+            operationTails.put(key,result);
+        }
+        result.whenComplete((unused,failure) -> { synchronized (operationTails) { operationTails.remove(key,result); } });
+        return result;
+    }
+    private CompletableFuture<Auction> transition(Auction before,Auction after,List<EconomyCredit> credits,Long acceptedOffer,DeliveryPayload delivery,String debit) {
+        return repository.transition(before,after,credits,acceptedOffer,delivery,debit).thenApply(changed -> {
+            if (!changed) { auctionCache.invalidate(before.id()); throw new LocalizedException("messages.auction-inactive"); }
+            cacheUpdated(after); return after;
+        });
+    }
+    private List<EconomyCredit> bidRefund(Auction auction,String suffix) {
+        return auction.highestBidderId()==null || auction.currentBid()<=0 ? List.of()
+            : List.of(new EconomyCredit("bid-refund:"+auction.id()+":"+suffix,auction.highestBidderId(),auction.currentBid()));
+    }
+    private <T> CompletableFuture<T> withDebit(UUID player,double amount,java.util.function.Function<String,CompletableFuture<T>> work) {
+        return ledger.debit(player,amount).thenCompose(id -> {
+            CompletableFuture<T> task;
+            try { task=work.apply(id); } catch (Throwable failure) { task=CompletableFuture.failedFuture(failure); }
+            return task.handle((result,failure) -> {
+                if (failure==null) return CompletableFuture.completedFuture(result);
+                return ledger.refund(id).handle((unused,refundFailure) -> {
+                    if (refundFailure!=null) plugin.getLogger().severe("Refund retained in ledger "+id+": "+refundFailure.getMessage());
+                    throw new CompletionException(failure);
+                }).thenApply(unused -> result);
+            }).thenCompose(future -> future);
+        });
+    }
+    private CompletableFuture<Boolean> claimSingle(Player player,long id) {
+        return withAuctionLock(id,() -> freshAuction(id).thenCompose(auction -> onMainThread(() -> {
+            UUID actor=player.getUniqueId(); Auction updated=auction; DeliveryPayload delivery=null; List<EconomyCredit> credits=List.of();
+            if (auction.status()==AuctionStatus.SOLD && actor.equals(auction.sellerId()) && !auction.sellerClaimed()) {
+                double cut=auction.currentBid()*Math.max(0,1-configManager.taxRate(player)-configManager.commissionRate(player));
+                credits=List.of(new EconomyCredit("seller-claim:"+id,actor,cut)); updated=updated.markSellerClaimed();
+            } else if (auction.status()==AuctionStatus.SOLD && actor.equals(auction.highestBidderId()) && !auction.buyerClaimed()) {
+                delivery=new DeliveryPayload(actor,auction.item(),id,"won-auction"); updated=updated.markBuyerClaimed();
+            } else if ((auction.status()==AuctionStatus.EXPIRED || auction.status()==AuctionStatus.CANCELLED) && actor.equals(auction.sellerId()) && !auction.sellerClaimed()) {
+                delivery=new DeliveryPayload(actor,auction.item(),id,"returned-auction"); updated=updated.markSellerClaimed();
+            } else return null;
+            if (updated.sellerClaimed() && (updated.buyerClaimed() || updated.status()!=AuctionStatus.SOLD)) updated=updated.withStatus(AuctionStatus.CLAIMED);
+            return new ClaimMutation(auction,updated,credits,delivery);
+        })).thenCompose(mutation -> mutation==null ? CompletableFuture.completedFuture(false)
+            : repository.transition(mutation.before(),mutation.after(),mutation.credits(),null,mutation.delivery(),null)
+                .thenApply(changed -> { if (changed) cacheUpdated(mutation.after()); else auctionCache.invalidate(id); return changed; })));
+    }
+    private CompletableFuture<Boolean> claimDeliveryUnlocked(Player player,Long deliveryId) {
+        UUID actor=player.getUniqueId();
+        return marketRepository.deliveries(actor).thenCompose(entries -> {
+            CompletableFuture<Boolean> chain=CompletableFuture.completedFuture(false);
+            for (DeliveryBoxEntry entry:entries) if (deliveryId==null || entry.id()==deliveryId) {
+                chain=chain.thenCompose(changed -> onMainThread(() -> player.isOnline() && fits(player,entry.item()))
+                    .thenCompose(capacity -> !capacity ? CompletableFuture.completedFuture(false) : marketRepository.reserveDelivery(entry.id(),actor)
+                        .thenCompose(reserved -> !reserved ? CompletableFuture.completedFuture(false) : onMainThread(() -> tryClaimDelivery(player,entry))
+                            .thenCompose(delivered -> (delivered ? marketRepository.removeDelivery(entry.id()) : marketRepository.releaseDelivery(entry.id())).thenApply(unused -> delivered))))
+                    .thenApply(delivered -> changed||delivered));
+            }
+            return chain;
+        });
+    }
+    private boolean fits(Player player,ItemStack item) {
+        int capacity=0;
+        for (ItemStack slot:player.getInventory().getStorageContents()) {
+            if (slot==null || slot.getType().isAir()) capacity+=Math.min(item.getMaxStackSize(),player.getInventory().getMaxStackSize());
+            else if (slot.isSimilar(item)) capacity+=Math.max(0,Math.min(slot.getMaxStackSize(),player.getInventory().getMaxStackSize())-slot.getAmount());
+            if (capacity>=item.getAmount()) return true;
+        }
+        return false;
+    }
+    private CompletableFuture<Void> restoreEscrow(UUID id,UUID seller,ItemStack item,String debit) {
+        return ledger.state(debit).thenCompose(state -> {
+            if ("COMMITTED".equals(state)) return onMainThread(() -> { escrow.mark(id,"COMMITTED"); return null; });
+            return marketRepository.storeDeliveryOnce(seller,item,"listing-escrow:"+id,"failed-listing")
+                .thenCompose(unused -> onMainThread(() -> { escrow.mark(id,"RESTORED"); notificationService.notify(seller,"messages.delivery-box-stored",Map.of("count","1")); return null; }));
+        });
+    }
+    private CompletableFuture<Void> recoverEscrow() {
+        return onMainThread(escrow::pending).thenCompose(entries -> {
+            CompletableFuture<Void> chain=CompletableFuture.completedFuture(null);
+            for (var entry:entries) {
+                if ("REMOVED".equals(entry.state())) chain=chain.thenCompose(unused -> restoreEscrow(entry.id(),entry.seller(),entry.item(),entry.debitId()));
+                else plugin.getLogger().severe("Listing inventory outcome requires review: listing-escrow/"+entry.id()+".yml");
+            }
+            return chain;
+        });
+    }
+    private record ClaimMutation(Auction before,Auction after,List<EconomyCredit> credits,DeliveryPayload delivery) { }
+
 }

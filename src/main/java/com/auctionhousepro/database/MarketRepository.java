@@ -33,11 +33,28 @@ public interface MarketRepository {
 
     CompletableFuture<Void> storeDelivery(UUID playerId, ItemStack itemStack, Long sourceAuctionId, String reason);
 
+    default CompletableFuture<Void> storeDeliveryOnce(UUID playerId, ItemStack itemStack, String key, String reason) {
+        return CompletableFuture.failedFuture(new UnsupportedOperationException("Idempotent delivery storage required"));
+    }
+
     CompletableFuture<List<DeliveryBoxEntry>> deliveries(UUID playerId);
+    default CompletableFuture<List<String>> reviewDeliveries() { return CompletableFuture.failedFuture(new UnsupportedOperationException()); }
+    default CompletableFuture<Void> reconcileDelivery(long id,boolean delivered) { return CompletableFuture.failedFuture(new UnsupportedOperationException()); }
 
     CompletableFuture<Void> removeDelivery(long deliveryId);
 
+    default CompletableFuture<Boolean> reserveDelivery(long id, UUID player) { return CompletableFuture.failedFuture(new UnsupportedOperationException("Delivery reservations required")); }
+    default CompletableFuture<Void> releaseDelivery(long id) { return CompletableFuture.failedFuture(new UnsupportedOperationException("Delivery reservations required")); }
+
     CompletableFuture<AuctionOffer> createOffer(long auctionId, UUID sellerId, UUID buyerId, double amount);
+
+    default CompletableFuture<AuctionOffer> createOfferWithReceipt(long auctionId, UUID sellerId, UUID buyerId, double amount, String debitId) {
+        return CompletableFuture.failedFuture(new UnsupportedOperationException("Offer payment receipts required"));
+    }
+
+    default CompletableFuture<Boolean> rejectOfferWithRefund(long offerId, AuctionOfferStatus status) {
+        return CompletableFuture.failedFuture(new UnsupportedOperationException("Atomic offer refunds required"));
+    }
 
     CompletableFuture<List<AuctionOffer>> offersForSeller(UUID sellerId);
 

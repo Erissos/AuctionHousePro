@@ -29,6 +29,7 @@ public final class AuctionHouseProPlugin extends JavaPlugin {
     private AuctionRepository auctionRepository;
     private MarketRepository marketRepository;
     private EconomyService economyService;
+    private com.auctionhousepro.economy.EconomyLedger economyLedger;
     private AuditLogService auditLogService;
     private DiscordWebhookService discordWebhookService;
     private NotificationService notificationService;
@@ -51,6 +52,8 @@ public final class AuctionHouseProPlugin extends JavaPlugin {
         this.auctionRepository = new SqlAuctionRepository(this, databaseManager);
         this.marketRepository = new SqlMarketRepository(databaseManager);
         this.economyService = new EconomyService(this);
+        this.databaseManager.markUncertainDeliveries();
+        this.economyLedger = new com.auctionhousepro.economy.EconomyLedger(this,databaseManager,economyService);
         this.auditLogService = new AuditLogService(this, databaseManager);
         this.discordWebhookService = new DiscordWebhookService(this, configManager);
         this.notificationService = new NotificationService(localeManager);
@@ -128,4 +131,6 @@ public final class AuctionHouseProPlugin extends JavaPlugin {
     public GuiManager getGuiManager() {
         return guiManager;
     }
+
+    public com.auctionhousepro.economy.EconomyLedger getEconomyLedger() { return economyLedger; }
 }

@@ -1,5 +1,22 @@
 # Sürüm notları
 
+## 1.1.1-SNAPSHOT — yayımlanmamış düzeltmeler
+
+- MySQL sütun/indeks geçişleri bağlı veritabanıyla sınırlandırılır; başka veritabanındaki şema geçişi yükseltmeyi engellemez.
+- Ödeme sürerken süresi dolan ilanda teklif/satış/offer SQL aşamasında reddedilir; devam eden iade aynı işlem geleceğiyle beklenir.
+- Başarılı teklif, satış ve claim istatistikleri yeniden kaydedilir.
+
+- Para, teklif, satış, iptal ve claim değişiklikleri SQL durum koşullarıyla uygulanır; teslimatlar oyuncu/ilan bazında sıralanır.
+- Aynı claim, iptal, teklif yanıtı veya yönetici iadesi ikinci para/eşya teslimatı oluşturamaz.
+- Tam eşya kapasitesi yoksa teslim kutusu envantere hiçbir parça eklemez. Teslim kaydı koşullu olarak sahiplenilir.
+- Elde tutulan slot/eşya ve ilan sınırı işlem sırasında tekrar doğrulanır; ücret reddedilen/başarısız ilanda telafi edilir.
+- SQL işlemine bağlı borç makbuzları ve kredi kuyruğu; başarısız insert için kalıcı eşya emanet kaydı.
+- Ekonomi sağlayıcısının sonucu belirsizse otomatik tekrar yerine yönetici incelemesi; açık ödeme incelemesi olan oyuncu için yeni borçlandırma engeli.
+- Tüm aktif işlem yollarında süre/durum denetimi; sonlu tutar ve doğrudan `long` ilan kimliği doğrulaması.
+- 13 dilde pencere başlığı ve oyuncuya özel yenileme; eski asenkron menü sonucunun kapatılmış/yeni ekranı açmasının engellenmesi.
+- Bukkit/Vault işlemleri sunucu iş parçacığında; SQLite tek bağlantı, WAL ve bekleme süresi; teslim/ödeme şema geçişi.
+- Menü sürükleme koruması, güvenli boyut/slot sınırları, atomik dil dosyası kaydı ve bozuk YAML denetimi.
+
 ## 1.1.0 — 3 Ekim 2026
 
 - Paper 1.20.6–26.2 desteği; Paper 1.20.6 API, Java 21 bytecode ve `api-version: '1.20.6'` korunur.

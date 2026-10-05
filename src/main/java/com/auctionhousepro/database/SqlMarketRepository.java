@@ -26,6 +26,86 @@ import java.util.concurrent.CompletableFuture;
 public final class SqlMarketRepository implements MarketRepository {
     private final DatabaseManager databaseManager;
 
+    @Override public CompletableFuture<List<String>> reviewDeliveries() {
+        return CompletableFuture.supplyAsync(() -> {
+            List<String> rows=new java.util.ArrayList<>();
+            try (var connection=databaseManager.connection(); var statement=connection.prepareStatement("SELECT id,player_id,reason FROM delivery_box WHERE state='REVIEW' ORDER BY id"); var result=statement.executeQuery()) {
+                while (result.next()) rows.add(result.getLong(1)+" "+result.getString(2)+" "+result.getString(3));
+            } catch (java.sql.SQLException failure) { throw new IllegalStateException(failure); }
+            return rows;
+        });
+    }
+    @Override public CompletableFuture<Void> reconcileDelivery(long id,boolean delivered) {
+        return CompletableFuture.runAsync(() -> {
+            String sql=delivered ? "DELETE FROM delivery_box WHERE id=? AND state='REVIEW'" : "UPDATE delivery_box SET state='PENDING' WHERE id=? AND state='REVIEW'";
+            try (var connection=databaseManager.connection(); var statement=connection.prepareStatement(sql)) {
+                statement.setLong(1,id); if (statement.executeUpdate()!=1) throw new IllegalArgumentException("No delivery awaiting review");
+            } catch (java.sql.SQLException failure) { throw new IllegalStateException(failure); }
+        });
+    }
+
+    @Override public CompletableFuture<Void> storeDeliveryOnce(UUID player,ItemStack item,String key,String reason) {
+        String serialized=ItemSerializer.serialize(item);
+        return CompletableFuture.runAsync(() -> {
+            String sql=(databaseManager.isMysql() ? "INSERT IGNORE" : "INSERT OR IGNORE")+" INTO delivery_box (player_id,item_data,source_auction_id,reason,created_at,state,delivery_key) VALUES (?,?,NULL,?,?,'PENDING',?)";
+            try (Connection connection=databaseManager.connection(); PreparedStatement statement=connection.prepareStatement(sql)) {
+                statement.setString(1,player.toString()); statement.setString(2,serialized); statement.setString(3,reason); statement.setLong(4,System.currentTimeMillis()); statement.setString(5,key); statement.executeUpdate();
+            } catch (SQLException failure) { throw new IllegalStateException(failure); }
+        });
+    }
+
+    @Override public CompletableFuture<Boolean> reserveDelivery(long id,UUID player) {
+        return CompletableFuture.supplyAsync(() -> {
+            try (Connection connection=databaseManager.connection(); PreparedStatement statement=connection.prepareStatement("UPDATE delivery_box SET state='DELIVERING' WHERE id=? AND player_id=? AND state='PENDING'")) {
+                statement.setLong(1,id); statement.setString(2,player.toString()); return statement.executeUpdate()==1;
+            } catch (SQLException failure) { throw new IllegalStateException(failure); }
+        });
+    }
+    @Override public CompletableFuture<Void> releaseDelivery(long id) {
+        return CompletableFuture.runAsync(() -> {
+            try (Connection connection=databaseManager.connection(); PreparedStatement statement=connection.prepareStatement("UPDATE delivery_box SET state='PENDING' WHERE id=? AND state='DELIVERING'")) {
+                statement.setLong(1,id); statement.executeUpdate();
+            } catch (SQLException failure) { throw new IllegalStateException(failure); }
+        });
+    }
+    @Override public CompletableFuture<AuctionOffer> createOfferWithReceipt(long auctionId,UUID sellerId,UUID buyerId,double amount,String debitId) {
+        return CompletableFuture.supplyAsync(() -> {
+            long now=System.currentTimeMillis();
+            try (Connection connection=databaseManager.connection()) {
+                connection.setAutoCommit(false);
+                try (PreparedStatement statement=connection.prepareStatement("INSERT INTO auction_offers (auction_id,seller_id,buyer_id,amount,status,created_at,updated_at) SELECT ?,?,?,?,'PENDING',?,? FROM auctions WHERE id=? AND seller_id=? AND status='ACTIVE' AND expires_at>?",Statement.RETURN_GENERATED_KEYS)) {
+                    statement.setLong(1,auctionId); statement.setString(2,sellerId.toString()); statement.setString(3,buyerId.toString()); statement.setDouble(4,amount); statement.setLong(5,now); statement.setLong(6,now);
+                    statement.setLong(7,auctionId); statement.setString(8,sellerId.toString()); statement.setLong(9,now);
+                    if (statement.executeUpdate()!=1) throw new com.auctionhousepro.exception.LocalizedException("messages.auction-inactive");
+                    long id;
+                    try (ResultSet keys=statement.getGeneratedKeys()) { if (!keys.next()) throw new SQLException("No offer ID"); id=keys.getLong(1); }
+                    com.auctionhousepro.economy.EconomyLedger.commitDebit(connection,debitId);
+                    connection.commit(); return new AuctionOffer(id,auctionId,sellerId,buyerId,amount,AuctionOfferStatus.PENDING,Instant.ofEpochMilli(now),Instant.ofEpochMilli(now));
+                } catch (Throwable failure) { connection.rollback(); throw failure; }
+            } catch (SQLException failure) { throw new IllegalStateException(failure); }
+        });
+    }
+    @Override public CompletableFuture<Boolean> rejectOfferWithRefund(long id,AuctionOfferStatus status) {
+        return CompletableFuture.supplyAsync(() -> {
+            try (Connection connection=databaseManager.connection()) {
+                connection.setAutoCommit(false);
+                try {
+                    UUID buyer; double amount;
+                    try (PreparedStatement statement=connection.prepareStatement("SELECT buyer_id,amount FROM auction_offers WHERE id=? AND status='PENDING'")) {
+                        statement.setLong(1,id);
+                        try (ResultSet result=statement.executeQuery()) { if (!result.next()) { connection.commit(); return false; } buyer=UUID.fromString(result.getString(1)); amount=result.getDouble(2); }
+                    }
+                    try (PreparedStatement statement=connection.prepareStatement("UPDATE auction_offers SET status=?,updated_at=? WHERE id=? AND status='PENDING'")) {
+                        statement.setString(1,status.name()); statement.setLong(2,System.currentTimeMillis()); statement.setLong(3,id);
+                        if (statement.executeUpdate()!=1) { connection.rollback(); return false; }
+                    }
+                    com.auctionhousepro.economy.EconomyLedger.insertCredit(connection,databaseManager.isMysql(),new com.auctionhousepro.model.EconomyCredit("offer-refund:"+id,buyer,amount));
+                    connection.commit(); return true;
+                } catch (Throwable failure) { connection.rollback(); throw failure; }
+            } catch (SQLException failure) { throw new IllegalStateException(failure); }
+        });
+    }
+
     public SqlMarketRepository(DatabaseManager databaseManager) {
         this.databaseManager = databaseManager;
     }
@@ -198,13 +278,14 @@ public final class SqlMarketRepository implements MarketRepository {
     @Override
     public CompletableFuture<List<DeliveryBoxEntry>> deliveries(UUID playerId) {
         return CompletableFuture.supplyAsync(() -> {
-            try (Connection connection = databaseManager.connection(); PreparedStatement statement = connection.prepareStatement("SELECT * FROM delivery_box WHERE player_id = ? ORDER BY created_at ASC")) {
+            try (Connection connection = databaseManager.connection(); PreparedStatement statement = connection.prepareStatement("SELECT * FROM delivery_box WHERE player_id = ? AND state='PENDING' ORDER BY created_at ASC")) {
                 statement.setString(1, playerId.toString());
                 try (ResultSet resultSet = statement.executeQuery()) {
                     List<DeliveryBoxEntry> entries = new ArrayList<>();
                     while (resultSet.next()) {
                         long sourceAuctionId = resultSet.getLong("source_auction_id");
-                        entries.add(new DeliveryBoxEntry(resultSet.getLong("id"), UUID.fromString(resultSet.getString("player_id")), ItemSerializer.deserialize(resultSet.getString("item_data")), resultSet.wasNull() ? null : sourceAuctionId, resultSet.getString("reason"), Instant.ofEpochMilli(resultSet.getLong("created_at"))));
+                        boolean sourceMissing=resultSet.wasNull();
+                        entries.add(new DeliveryBoxEntry(resultSet.getLong("id"), UUID.fromString(resultSet.getString("player_id")), ItemSerializer.deserialize(resultSet.getString("item_data")), sourceMissing ? null : sourceAuctionId, resultSet.getString("reason"), Instant.ofEpochMilli(resultSet.getLong("created_at"))));
                     }
                     return entries;
                 }
@@ -217,7 +298,7 @@ public final class SqlMarketRepository implements MarketRepository {
     @Override
     public CompletableFuture<Void> removeDelivery(long deliveryId) {
         return CompletableFuture.runAsync(() -> {
-            try (Connection connection = databaseManager.connection(); PreparedStatement statement = connection.prepareStatement("DELETE FROM delivery_box WHERE id = ?")) {
+            try (Connection connection = databaseManager.connection(); PreparedStatement statement = connection.prepareStatement("DELETE FROM delivery_box WHERE id = ? AND state='DELIVERING'")) {
                 statement.setLong(1, deliveryId);
                 statement.executeUpdate();
             } catch (SQLException exception) {

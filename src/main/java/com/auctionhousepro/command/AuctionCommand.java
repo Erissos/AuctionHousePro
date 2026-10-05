@@ -34,6 +34,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 
 public final class AuctionCommand implements CommandExecutor, TabCompleter {
     private static final DateTimeFormatter TIMESTAMP_FORMAT = DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm").withZone(ZoneId.systemDefault());
@@ -51,6 +52,15 @@ public final class AuctionCommand implements CommandExecutor, TabCompleter {
 
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
+        try { return execute(sender,command,label,args); }
+        catch (RuntimeException failure) {
+            String locale=sender instanceof Player player ? localeManager.playerLocale(player) : configManager.defaultLocale();
+            String key=failure instanceof com.auctionhousepro.exception.LocalizedException error ? error.messageKey() : "messages.transaction-failed";
+            sender.sendMessage(localeManager.message(locale,key,TagResolver.empty())); return true;
+        }
+    }
+
+    private boolean execute(CommandSender sender,Command command,String label,String[] args) {
         String subcommand = args.length == 0 ? "menu" : args[0].toLowerCase(Locale.ROOT);
         String locale = sender instanceof Player player ? localeManager.playerLocale(player) : configManager.defaultLocale();
         if (sender instanceof Player && !sender.hasPermission("auctionhousepro.use")) {
@@ -69,7 +79,31 @@ public final class AuctionCommand implements CommandExecutor, TabCompleter {
             }
             configManager.reload();
             localeManager.reload();
+            ((com.auctionhousepro.service.impl.AuctionServiceImpl)auctionService).rescheduleTimers();
             sender.sendMessage(localeManager.message(locale, "messages.reload-complete", TagResolver.empty()));
+            return true;
+        }
+        if (subcommand.equals("admin") && args.length>1 && args[1].equalsIgnoreCase("ledger")) {
+            if (!sender.hasPermission("auctionhousepro.admin")) { sender.sendMessage(localeManager.message(locale,"messages.no-permission",TagResolver.empty())); return true; }
+            var ledger=com.auctionhousepro.AuctionHouseProPlugin.getInstance().getEconomyLedger();
+            if (args.length==2) ledger.review().thenAccept(ids -> runSync(() -> sender.sendMessage(localeManager.message(locale,"messages.ledger-review",Placeholder.unparsed("ids",String.join(", ",ids))))));
+            else if (args.length==4 && (args[3].equalsIgnoreCase("applied") || args[3].equalsIgnoreCase("retry"))) {
+                ledger.reconcile(args[2],args[3].equalsIgnoreCase("applied")).thenRun(() -> runSync(() -> sender.sendMessage(localeManager.message(locale,"messages.ledger-resolved",TagResolver.empty())))).exceptionally(failure -> { runSync(() -> sender.sendMessage(localeManager.message(locale,"messages.transaction-failed",TagResolver.empty()))); return null; });
+            } else sender.sendMessage(localeManager.message(locale,"messages.usage-ledger",TagResolver.empty()));
+            return true;
+        }
+        if (subcommand.equals("admin") && args.length>1 && (args[1].equalsIgnoreCase("delivery") || args[1].equalsIgnoreCase("escrow"))) {
+            if (!sender.hasPermission("auctionhousepro.admin")) { sender.sendMessage(localeManager.message(locale,"messages.no-permission",TagResolver.empty())); return true; }
+            var service=(com.auctionhousepro.service.impl.AuctionServiceImpl) auctionService;
+            CompletableFuture<?> operation;
+            if (args.length==2) {
+                var records=args[1].equalsIgnoreCase("delivery") ? service.reviewDeliveries() : CompletableFuture.completedFuture(service.reviewEscrow());
+                operation=records.thenAccept(ids -> runSync(() -> sender.sendMessage(localeManager.message(locale,"messages.ledger-review",Placeholder.unparsed("ids",String.join(", ",ids))))));
+            } else if (args.length==4 && (args[3].equalsIgnoreCase("applied") || args[3].equalsIgnoreCase("retry"))) {
+                operation=(args[1].equalsIgnoreCase("delivery") ? service.reconcileDelivery(parseId(args[2]),args[3].equalsIgnoreCase("applied")) : service.reconcileEscrow(java.util.UUID.fromString(args[2]),args[3].equalsIgnoreCase("retry")))
+                    .thenRun(() -> runSync(() -> sender.sendMessage(localeManager.message(locale,"messages.ledger-resolved",TagResolver.empty()))));
+            } else { sender.sendMessage("/ah admin "+args[1]+" [id applied|retry]"); return true; }
+            operation.exceptionally(failure -> { runSync(() -> sender.sendMessage(localeManager.message(locale,"messages.transaction-failed",TagResolver.empty()))); return null; });
             return true;
         }
         if (!(sender instanceof Player player)) {
@@ -147,7 +181,7 @@ public final class AuctionCommand implements CommandExecutor, TabCompleter {
             player.sendMessage(localeManager.message(player, "messages.usage-bid"));
             return;
         }
-        long auctionId = (long) parseDouble(args[1]);
+        long auctionId = parseId(args[1]);
         double amount = parseDouble(args[2]);
         auctionService.placeBid(player, auctionId, amount)
             .thenAccept(auction -> runSync(() -> player.sendMessage(localeManager.message(player, "messages.bid-success",
@@ -163,7 +197,7 @@ public final class AuctionCommand implements CommandExecutor, TabCompleter {
             player.sendMessage(localeManager.message(player, "messages.usage-buy"));
             return;
         }
-        long auctionId = (long) parseDouble(args[1]);
+        long auctionId = parseId(args[1]);
         auctionService.buyNow(player, auctionId)
             .thenAccept(auction -> runSync(() -> player.sendMessage(localeManager.message(player, "messages.buy-now-success",
                 Placeholder.parsed("item", auction.item().getType().name()),
@@ -175,7 +209,7 @@ public final class AuctionCommand implements CommandExecutor, TabCompleter {
     }
 
     private void handleClaim(Player player, String[] args) {
-        Long targetId = args.length >= 2 ? (long) parseDouble(args[1]) : null;
+        Long targetId = args.length >= 2 ? parseId(args[1]) : null;
         auctionService.claim(player, targetId).thenAccept(success -> {
             if (!success) {
                 runSync(() -> player.sendMessage(localeManager.message(player, "messages.no-claimable-auctions")));
@@ -190,7 +224,7 @@ public final class AuctionCommand implements CommandExecutor, TabCompleter {
 
     private void handleDelivery(Player player, String[] args) {
         if (args.length >= 2) {
-            Long deliveryId = (long) parseDouble(args[1]);
+            Long deliveryId = parseId(args[1]);
             auctionService.claimDelivery(player, deliveryId).thenAccept(success -> runSync(() -> player.sendMessage(localeManager.message(player, success ? "messages.delivery-claimed" : "messages.delivery-empty")))).exceptionally(throwable -> {
                 runSync(() -> player.sendMessage(localeManager.exception(player, throwable)));
                 return null;
@@ -218,6 +252,7 @@ public final class AuctionCommand implements CommandExecutor, TabCompleter {
             return;
         }
         localeManager.setPlayerLocale(player.getUniqueId(), requested);
+        guiManager.refreshLanguage(player);
         player.sendMessage(localeManager.message(player, "messages.locale-changed", Placeholder.unparsed("locale", requested)));
     }
 
@@ -235,7 +270,7 @@ public final class AuctionCommand implements CommandExecutor, TabCompleter {
             player.sendMessage(localeManager.message(player, "messages.usage-watch"));
             return;
         }
-        long auctionId = (long) parseDouble(args[1]);
+        long auctionId = parseId(args[1]);
         Double targetPrice = args.length >= 3 ? parsePositive(args[2]) : null;
         auctionService.toggleWatch(player.getUniqueId(), auctionId, targetPrice).thenAccept(watching -> runSync(() -> player.sendMessage(localeManager.message(player, watching ? "messages.watch-added" : "messages.watch-removed",
                 Placeholder.parsed("id", String.valueOf(auctionId)),
@@ -250,7 +285,7 @@ public final class AuctionCommand implements CommandExecutor, TabCompleter {
             player.sendMessage(localeManager.message(player, "messages.usage-detail"));
             return;
         }
-        long auctionId = (long) parseDouble(args[1]);
+        long auctionId = parseId(args[1]);
         auctionService.findAuction(auctionId).thenCompose(optional -> optional.map(auction -> auctionService.bidHistory(auctionId, 5).thenApply(history -> new AuctionDetailPayload(auction, history))).orElseGet(() -> java.util.concurrent.CompletableFuture.failedFuture(new com.auctionhousepro.exception.LocalizedException("messages.auction-not-found")))).thenAccept(payload -> runSync(() -> sendAuctionDetail(player, payload.auction(), payload.history()))).exceptionally(throwable -> {
             runSync(() -> player.sendMessage(localeManager.exception(player, throwable)));
             return null;
@@ -270,7 +305,7 @@ public final class AuctionCommand implements CommandExecutor, TabCompleter {
             player.sendMessage(localeManager.message(player, "messages.usage-history"));
             return;
         }
-        long auctionId = (long) parseDouble(args[1]);
+        long auctionId = parseId(args[1]);
         auctionService.bidHistory(auctionId, 10).thenAccept(history -> runSync(() -> sendBidHistory(player, auctionId, history))).exceptionally(throwable -> {
             runSync(() -> player.sendMessage(localeManager.exception(player, throwable)));
             return null;
@@ -282,7 +317,7 @@ public final class AuctionCommand implements CommandExecutor, TabCompleter {
             player.sendMessage(localeManager.message(player, "messages.usage-offer"));
             return;
         }
-        long auctionId = (long) parseDouble(args[1]);
+        long auctionId = parseId(args[1]);
         double amount = parsePositive(args[2]);
         if (amount < 0.0D) {
             player.sendMessage(localeManager.message(player, "messages.invalid-number"));
@@ -312,7 +347,7 @@ public final class AuctionCommand implements CommandExecutor, TabCompleter {
                     player.sendMessage(localeManager.message(player, "messages.usage-offers-manage"));
                     return;
                 }
-                long offerId = (long) parseDouble(args[2]);
+                long offerId = parseId(args[2]);
                 boolean accept = mode.equals("accept");
                 auctionService.respondToOffer(player, offerId, accept).thenAccept(success -> runSync(() -> player.sendMessage(localeManager.message(player, success ? (accept ? "messages.offer-accepted" : "messages.offer-updated") : "messages.offer-not-found",
                         Placeholder.parsed("id", String.valueOf(offerId)))))).exceptionally(throwable -> {
@@ -337,6 +372,7 @@ public final class AuctionCommand implements CommandExecutor, TabCompleter {
             case "reload" -> {
                 configManager.reload();
                 localeManager.reload();
+            ((com.auctionhousepro.service.impl.AuctionServiceImpl)auctionService).rescheduleTimers();
                 player.sendMessage(localeManager.message(player, "messages.reload-complete"));
             }
             case "menu" -> guiManager.openAdmin(player);
@@ -345,7 +381,7 @@ public final class AuctionCommand implements CommandExecutor, TabCompleter {
                     player.sendMessage(localeManager.message(player, "messages.usage-admin-remove"));
                     return;
                 }
-                long auctionId = (long) parseDouble(args[2]);
+                long auctionId = parseId(args[2]);
                 auctionService.cancelAuction(player, auctionId).thenAccept(success -> runSync(() -> player.sendMessage(localeManager.message(player, "messages.auction-cancelled", Placeholder.parsed("id", String.valueOf(auctionId)))))).exceptionally(throwable -> {
                     runSync(() -> player.sendMessage(localeManager.exception(player, throwable)));
                     return null;
@@ -356,7 +392,7 @@ public final class AuctionCommand implements CommandExecutor, TabCompleter {
                     player.sendMessage(localeManager.message(player, "messages.usage-admin-expire"));
                     return;
                 }
-                long auctionId = (long) parseDouble(args[2]);
+                long auctionId = parseId(args[2]);
                 auctionService.forceExpire(player, auctionId).thenAccept(success -> runSync(() -> player.sendMessage(localeManager.message(player, success ? "messages.admin-expired" : "messages.auction-not-found", Placeholder.parsed("id", String.valueOf(auctionId)))))).exceptionally(throwable -> {
                     runSync(() -> player.sendMessage(localeManager.exception(player, throwable)));
                     return null;
@@ -367,7 +403,7 @@ public final class AuctionCommand implements CommandExecutor, TabCompleter {
                     player.sendMessage(localeManager.message(player, "messages.usage-admin-return"));
                     return;
                 }
-                long auctionId = (long) parseDouble(args[2]);
+                long auctionId = parseId(args[2]);
                 auctionService.returnListing(player, auctionId).thenAccept(success -> runSync(() -> player.sendMessage(localeManager.message(player, success ? "messages.admin-returned" : "messages.auction-not-found", Placeholder.parsed("id", String.valueOf(auctionId)))))).exceptionally(throwable -> {
                     runSync(() -> player.sendMessage(localeManager.exception(player, throwable)));
                     return null;
@@ -388,9 +424,16 @@ public final class AuctionCommand implements CommandExecutor, TabCompleter {
         }
     }
 
+    private long parseId(String input) {
+        try { long id=Long.parseLong(input); if (id>0) return id; }
+        catch (NumberFormatException ignored) { }
+        throw new com.auctionhousepro.exception.LocalizedException("messages.invalid-number");
+    }
+
     private double parseDouble(String input) {
         try {
-            return Double.parseDouble(input);
+            double value = Double.parseDouble(input);
+            return com.auctionhousepro.economy.EconomyLedger.valid(value) ? value : -1;
         } catch (NumberFormatException exception) {
             return -1.0D;
         }
@@ -417,7 +460,7 @@ public final class AuctionCommand implements CommandExecutor, TabCompleter {
             return result;
         }
         if (args.length == 2 && args[0].equalsIgnoreCase("admin") && sender.hasPermission("auctionhousepro.admin")) {
-            return List.of("reload", "menu", "remove", "expire", "return", "stats", "audit");
+            return List.of("reload", "menu", "remove", "expire", "return", "stats", "audit", "ledger", "delivery", "escrow");
         }
         if (args.length == 2 && List.of("language", "lang", "locale").contains(args[0].toLowerCase(Locale.ROOT))) {
             return args[0].equalsIgnoreCase("locale") ? List.copyOf(localeManager.availableLocales()) : localeManager.availableLanguages();

@@ -1,54 +1,54 @@
-﻿prefix: '<!italic><gradient:#62d2ff:#5fffb3><bold>AuctionHousePro</bold></gradient><#d8e6f0> • </#d8e6f0>'
+prefix: <!italic><gradient:#62d2ff:#5fffb3><bold>AuctionHousePro</bold></gradient><#d8e6f0> • </#d8e6f0>
 labels:
-  seller: 'Seller'
-  price: 'Price'
-  buy-now: 'Buy Now'
-  category: 'Category'
-  ends-at: 'Ends At'
-  watchers: 'Watchers'
-  active-listings: 'Active Listings'
-  completed-sales: 'Completed Sales'
-  gross-volume: 'Gross Volume'
-  average-sale: 'Average Sale'
-  pending-offers: 'Pending Offers'
-  sold-listings: 'Sold Listings'
-  watch-records: 'Watch Records'
-  total-bids: 'Total Bids'
-  delivery-box: 'Delivery Box'
+  seller: Seller
+  price: Price
+  buy-now: Buy Now
+  category: Category
+  ends-at: Ends At
+  watchers: Watchers
+  active-listings: Active Listings
+  completed-sales: Completed Sales
+  gross-volume: Gross Volume
+  average-sale: Average Sale
+  pending-offers: Pending Offers
+  sold-listings: Sold Listings
+  watch-records: Watch Records
+  total-bids: Total Bids
+  delivery-box: Delivery Box
 values:
   none: '-'
-  not-available: 'N/A'
-  enabled: 'Enabled'
-  disabled: 'Disabled'
+  not-available: N/A
+  enabled: Enabled
+  disabled: Disabled
 categories:
-  all: 'All'
-  weapons: 'Weapons'
-  armor: 'Armor'
-  tools: 'Tools'
-  blocks: 'Blocks'
-  redstone: 'Redstone'
-  food: 'Food'
-  potions: 'Potions'
-  misc: 'Misc'
+  all: All
+  weapons: Weapons
+  armor: Armor
+  tools: Tools
+  blocks: Blocks
+  redstone: Redstone
+  food: Food
+  potions: Potions
+  misc: Misc
 sort-modes:
-  newest: 'Newest'
-  price_asc: 'Lowest Price'
-  price_desc: 'Highest Price'
-  ending_soon: 'Ending Soon'
-  rarity: 'Rarity'
-  most_watched: 'Most Watched'
-  hottest: 'Hottest'
-  featured: 'Featured'
+  newest: Newest
+  price_asc: Lowest Price
+  price_desc: Highest Price
+  ending_soon: Ending Soon
+  rarity: Rarity
+  most_watched: Most Watched
+  hottest: Hottest
+  featured: Featured
 statuses:
-  pending: 'Pending'
-  accepted: 'Accepted'
-  rejected: 'Rejected'
-  cancelled: 'Cancelled'
-  expired: 'Expired'
+  pending: Pending
+  accepted: Accepted
+  rejected: Rejected
+  cancelled: Cancelled
+  expired: Expired
 messages:
-  general-help: "<gray>Befehle: /<command> menu | /<command> help | /<command> language [code] | /<command> reload</gray>"
-  language-info: "<gray>Deine Sprache: <language>. Verfügbar: <languages>.</gray>"
-  language-invalid: "<red>Unbekannte Sprache. Verfügbar: <languages>.</red>"
+  general-help: '<gray>Befehle: /<command> menu | /<command> help | /<command> language [code] | /<command> reload</gray>'
+  language-info: '<gray>Deine Sprache: <language>. Verfügbar: <languages>.</gray>'
+  language-invalid: '<red>Unbekannte Sprache. Verfügbar: <languages>.</red>'
   usage-watch: '<!italic><#ff6b6b>Usage: /ah watch <id> [targetPrice]'
   usage-detail: '<!italic><#ff6b6b>Usage: /ah detail <id>'
   usage-history: '<!italic><#ff6b6b>Usage: /ah history <id>'
@@ -57,122 +57,136 @@ messages:
   usage-offers-manage: '<!italic><#ff6b6b>Usage: /ah offers <accept|reject|cancel> <offerId>'
   usage-admin-expire: '<!italic><#ff6b6b>Usage: /ah admin expire <id>'
   usage-admin-return: '<!italic><#ff6b6b>Usage: /ah admin return <id>'
-  delivery-empty: '<!italic><#ffd166>Your delivery box is empty.'
-  delivery-claimed: '<!italic><#5fffb3>Delivery entry claimed successfully.'
-  delivery-box-stored: '<!italic><#ffd166>Your inventory was full, so <#ffffff><count></#ffffff> item(s) were moved to the delivery box.'
+  delivery-empty: <!italic><#ffd166>Your delivery box is empty.
+  delivery-claimed: <!italic><#5fffb3>Delivery entry claimed successfully.
+  delivery-box-stored: <!italic><#ffd166>Your inventory was full, so <#ffffff><count></#ffffff> item(s) were moved to the
+    delivery box.
   watch-added: '<!italic><#5fffb3>Started watching auction #<id>.'
   watch-removed: '<!italic><#ffd166>Removed auction #<id> from your watch list.'
-  watch-target-reached: '<!italic><#5fffb3><#ffffff><item></#ffffff> reached your watch threshold at <#ffd166><amount></#ffd166>.'
-  offer-too-low: '<!italic><#ff6b6b>Your offer must be at least <#ffd166><amount></#ffd166>.'
+  watch-target-reached: <!italic><#5fffb3><#ffffff><item></#ffffff> reached your watch threshold at <#ffd166><amount></#ffd166>.
+  offer-too-low: <!italic><#ff6b6b>Your offer must be at least <#ffd166><amount></#ffd166>.
   offer-created: '<!italic><#5fffb3>Created offer #<id> for <#ffd166><amount></#ffd166>.'
-  offer-not-found: '<!italic><#ff6b6b>Offer not found.'
-  offer-no-longer-pending: '<!italic><#ff6b6b>This offer is no longer pending.'
+  offer-not-found: <!italic><#ff6b6b>Offer not found.
+  offer-no-longer-pending: <!italic><#ff6b6b>This offer is no longer pending.
   offer-accepted: '<!italic><#5fffb3>Offer #<id> accepted.'
   offer-updated: '<!italic><#ffd166>Offer #<id> updated.'
   detail-header: '<!italic><gradient:#62d2ff:#5fffb3><bold>Auction #<id> • <item></bold></gradient>'
   detail-line: '<!italic><#9fb3c8><label>: <#ffffff><value></#ffffff>'
   gui-detail-header: '<!italic><gradient:#62d2ff:#5fffb3><bold>Quick Detail #<id> • <item></bold></gradient>'
-  gui-detail-line: '<!italic><#9fb3c8><bidder></#9fb3c8> -> <#ffd166><amount></#ffd166>'
+  gui-detail-line: <!italic><#9fb3c8><bidder></#9fb3c8> -> <#ffd166><amount></#ffd166>
   history-header: '<!italic><gradient:#ffd166:#ff9f1c><bold>Bid History #<id></bold></gradient>'
-  history-empty: '<!italic><#ffd166>No bid history recorded yet.'
-  history-line: '<!italic><#9fb3c8><bidder></#9fb3c8> -> <#ffd166><amount></#ffd166> <#8ea2b5>(<time>)</#8ea2b5>'
-  profile-header: '<!italic><gradient:#62d2ff:#5fffb3><bold>Seller Profile • <seller></bold></gradient>'
+  history-empty: <!italic><#ffd166>No bid history recorded yet.
+  history-line: <!italic><#9fb3c8><bidder></#9fb3c8> -> <#ffd166><amount></#ffd166> <#8ea2b5>(<time>)</#8ea2b5>
+  profile-header: <!italic><gradient:#62d2ff:#5fffb3><bold>Seller Profile • <seller></bold></gradient>
   profile-line: '<!italic><#9fb3c8><label>: <#ffffff><value></#ffffff>'
-  gui-profile-header: '<!italic><gradient:#62d2ff:#5fffb3><bold>Quick Seller Profile • <seller></bold></gradient>'
-  gui-profile-line: '<!italic><#9fb3c8>Active: <#ffffff><active></#ffffff> | Sales: <#ffffff><sales></#ffffff> | Watchers: <#ffffff><watchers></#ffffff>'
-  profile-no-sales: '<!italic><#ffd166>No recent sales found.'
+  gui-profile-header: <!italic><gradient:#62d2ff:#5fffb3><bold>Quick Seller Profile • <seller></bold></gradient>
+  gui-profile-line: '<!italic><#9fb3c8>Active: <#ffffff><active></#ffffff> | Sales: <#ffffff><sales></#ffffff> | Watchers:
+    <#ffffff><watchers></#ffffff>'
+  profile-no-sales: <!italic><#ffd166>No recent sales found.
   profile-sales-header: '<!italic><#5fffb3>Recent sales:'
-  profile-sales-line: '<!italic><#9fb3c8>#<id> <item> -> <#ffd166><amount></#ffd166>'
-  offers-incoming-header: '<!italic><gradient:#62d2ff:#5fffb3><bold>Incoming Offers</bold></gradient>'
-  offers-outgoing-header: '<!italic><gradient:#62d2ff:#5fffb3><bold>Outgoing Offers</bold></gradient>'
-  offers-empty: '<!italic><#ffd166>No offers to show.'
+  profile-sales-line: <!italic><#9fb3c8>#<id> <item> -> <#ffd166><amount></#ffd166>
+  offers-incoming-header: <!italic><gradient:#62d2ff:#5fffb3><bold>Incoming Offers</bold></gradient>
+  offers-outgoing-header: <!italic><gradient:#62d2ff:#5fffb3><bold>Outgoing Offers</bold></gradient>
+  offers-empty: <!italic><#ffd166>No offers to show.
   offers-line: '<!italic><#9fb3c8>#<id> | Auction #<auction> | <player> | <#ffd166><amount></#ffd166> | <status>'
-  delivery-header: '<!italic><gradient:#64f38c:#38d9ff><bold>Delivery Box</bold></gradient>'
-  delivery-line: '<!italic><#9fb3c8>#<id> <item> | <reason> | <#8ea2b5><time></#8ea2b5>'
-  admin-stats-header: '<!italic><gradient:#ff9966:#ff5e62><bold>Market Stats</bold></gradient>'
+  delivery-header: <!italic><gradient:#64f38c:#38d9ff><bold>Delivery Box</bold></gradient>
+  delivery-line: <!italic><#9fb3c8>#<id> <item> | <reason> | <#8ea2b5><time></#8ea2b5>
+  admin-stats-header: <!italic><gradient:#ff9966:#ff5e62><bold>Market Stats</bold></gradient>
   admin-stats-line: '<!italic><#9fb3c8><label>: <#ffffff><value></#ffffff>'
-  admin-audit-header: '<!italic><gradient:#ff9966:#ff5e62><bold>Audit Lines • <query></bold></gradient>'
-  admin-audit-empty: '<!italic><#ffd166>No audit entries matched your query.'
-  admin-audit-line: '<!italic><#8ea2b5><line></#8ea2b5>'
+  admin-audit-header: <!italic><gradient:#ff9966:#ff5e62><bold>Audit Lines • <query></bold></gradient>
+  admin-audit-empty: <!italic><#ffd166>No audit entries matched your query.
+  admin-audit-line: <!italic><#8ea2b5><line></#8ea2b5>
   admin-expired: '<!italic><#5fffb3>Forced completion for auction #<id>.'
   admin-returned: '<!italic><#5fffb3>Returned auction #<id> to the seller.'
   rare-listing-broadcast: '<!italic><#5fffb3><seller></#5fffb3> listed a rare item: <#ffffff><item></#ffffff> for <#ffd166><amount></#ffd166>'
   high-sale-broadcast: '<!italic><#ffd166>High-value sale: <#ffffff><item></#ffffff> by <#5fffb3><seller></#5fffb3> for <#ffd166><amount></#ffd166>'
-  no-permission: '<!italic><#ff6b6b>Du hast keine Berechtigung dafuer.'
-  player-only: '<!italic><#ff6b6b>Dieser Befehl kann nur von Spielern genutzt werden.'
-  unknown-subcommand: '<!italic><#ff6b6b>Unbekannter Unterbefehl. Nutze <#62d2ff>/ah help</#62d2ff>.'
-  reload-complete: '<!italic><#5fffb3>Konfiguration und Sprachdateien wurden neu geladen.'
-  auction-created: '<!italic><#5fffb3><#ffffff><item></#ffffff> fuer <#ffd166><price></#ffd166> Coins eingestellt.'
-  bid-success: '<!italic><#5fffb3>Dein Gebot von <#ffd166><amount></#ffd166> Coins wurde abgegeben.'
-  buy-now-success: '<!italic><#5fffb3>Du hast <#ffffff><item></#ffffff> fuer <#ffd166><amount></#ffd166> Coins gekauft.'
+  no-permission: <!italic><#ff6b6b>Du hast keine Berechtigung dafuer.
+  player-only: <!italic><#ff6b6b>Dieser Befehl kann nur von Spielern genutzt werden.
+  unknown-subcommand: <!italic><#ff6b6b>Unbekannter Unterbefehl. Nutze <#62d2ff>/ah help</#62d2ff>.
+  reload-complete: <!italic><#5fffb3>Konfiguration und Sprachdateien wurden neu geladen.
+  auction-created: <!italic><#5fffb3><#ffffff><item></#ffffff> fuer <#ffd166><price></#ffd166> Coins eingestellt.
+  bid-success: <!italic><#5fffb3>Dein Gebot von <#ffd166><amount></#ffd166> Coins wurde abgegeben.
+  buy-now-success: <!italic><#5fffb3>Du hast <#ffffff><item></#ffffff> fuer <#ffd166><amount></#ffd166> Coins gekauft.
   auction-cancelled: '<!italic><#ffd166>Auktion #<id> wurde abgebrochen.'
-  claim-ready: '<!italic><#5fffb3>Du hast abholbare Auktionsbelohnungen. Nutze <#62d2ff>/ah claim</#62d2ff>.'
-  outbid: '<!italic><#ff6b6b>Du wurdest bei <#ffffff><item></#ffffff> ueberboten.'
-  won-auction: '<!italic><#5fffb3>Du hast <#ffffff><item></#ffffff> gewonnen. Hole es im Abholzentrum ab.'
-  sold-auction: '<!italic><#5fffb3>Dein Angebot fuer <#ffffff><item></#ffffff> wurde fuer <#ffd166><amount></#ffd166> Coins verkauft.'
-  expired-auction: '<!italic><#ffd166>Dein Angebot fuer <#ffffff><item></#ffffff> ist abgelaufen.'
-  invalid-number: '<!italic><#ff6b6b>Ungueltige Zahl.'
-  invalid-duration: '<!italic><#ff6b6b>Ungueltige Dauer. Nutze Werte wie 30m, 2h oder 1d.'
-  item-blocked: '<!italic><#ff6b6b>Dieser Gegenstand kann nicht eingestellt werden.'
-  not-enough-money: '<!italic><#ff6b6b>Du hast nicht genug Geld.'
-  auction-not-found: '<!italic><#ff6b6b>Auktion nicht gefunden.'
-  auction-inactive: '<!italic><#ff6b6b>Diese Auktion ist nicht mehr aktiv.'
-  cannot-bid-own: '<!italic><#ff6b6b>Du kannst nicht auf deine eigene Auktion bieten.'
-  cannot-buy-own: '<!italic><#ff6b6b>Du kannst deine eigene Auktion nicht kaufen.'
-  cannot-cancel-auction: '<!italic><#ff6b6b>Du kannst diese Auktion nicht abbrechen.'
-  buy-now-unavailable: '<!italic><#ff6b6b>Sofortkauf ist fuer diese Auktion nicht verfuegbar.'
-  bid-too-low: '<!italic><#ff6b6b>Das naechste gueltige Gebot ist <#ffd166><amount></#ffd166>.'
-  hold-item: '<!italic><#ff6b6b>Du musst einen Gegenstand in der Hand halten, bevor du ihn einstellst.'
-  listing-cooldown: '<!italic><#ff6b6b>Du listest zu schnell. Warte einen Moment.'
-  bid-cooldown: '<!italic><#ff6b6b>Du bietest zu schnell. Warte einen Moment.'
-  max-active-listings: '<!italic><#ff6b6b>Du hast das Maximum aktiver Angebote erreicht.'
-  action-cancelled: '<!italic><#ff6b6b>Diese Aktion wurde von einem anderen Plugin abgebrochen.'
-  generic-error: '<!italic><#ff6b6b>Beim Verarbeiten deiner Anfrage ist ein Fehler aufgetreten.'
+  claim-ready: <!italic><#5fffb3>Du hast abholbare Auktionsbelohnungen. Nutze <#62d2ff>/ah claim</#62d2ff>.
+  outbid: <!italic><#ff6b6b>Du wurdest bei <#ffffff><item></#ffffff> ueberboten.
+  won-auction: <!italic><#5fffb3>Du hast <#ffffff><item></#ffffff> gewonnen. Hole es im Abholzentrum ab.
+  sold-auction: <!italic><#5fffb3>Dein Angebot fuer <#ffffff><item></#ffffff> wurde fuer <#ffd166><amount></#ffd166> Coins
+    verkauft.
+  expired-auction: <!italic><#ffd166>Dein Angebot fuer <#ffffff><item></#ffffff> ist abgelaufen.
+  invalid-number: <!italic><#ff6b6b>Ungueltige Zahl.
+  invalid-duration: <!italic><#ff6b6b>Ungueltige Dauer. Nutze Werte wie 30m, 2h oder 1d.
+  item-blocked: <!italic><#ff6b6b>Dieser Gegenstand kann nicht eingestellt werden.
+  not-enough-money: <!italic><#ff6b6b>Du hast nicht genug Geld.
+  auction-not-found: <!italic><#ff6b6b>Auktion nicht gefunden.
+  auction-inactive: <!italic><#ff6b6b>Diese Auktion ist nicht mehr aktiv.
+  cannot-bid-own: <!italic><#ff6b6b>Du kannst nicht auf deine eigene Auktion bieten.
+  cannot-buy-own: <!italic><#ff6b6b>Du kannst deine eigene Auktion nicht kaufen.
+  cannot-cancel-auction: <!italic><#ff6b6b>Du kannst diese Auktion nicht abbrechen.
+  buy-now-unavailable: <!italic><#ff6b6b>Sofortkauf ist fuer diese Auktion nicht verfuegbar.
+  bid-too-low: <!italic><#ff6b6b>Das naechste gueltige Gebot ist <#ffd166><amount></#ffd166>.
+  hold-item: <!italic><#ff6b6b>Du musst einen Gegenstand in der Hand halten, bevor du ihn einstellst.
+  listing-cooldown: <!italic><#ff6b6b>Du listest zu schnell. Warte einen Moment.
+  bid-cooldown: <!italic><#ff6b6b>Du bietest zu schnell. Warte einen Moment.
+  max-active-listings: <!italic><#ff6b6b>Du hast das Maximum aktiver Angebote erreicht.
+  action-cancelled: <!italic><#ff6b6b>Diese Aktion wurde von einem anderen Plugin abgebrochen.
+  generic-error: <!italic><#ff6b6b>Beim Verarbeiten deiner Anfrage ist ein Fehler aufgetreten.
   usage-sell: '<!italic><#ff6b6b>Verwendung: /ah sell <price> [buyNow] [30m|2h|1d] [increment]'
   usage-bid: '<!italic><#ff6b6b>Verwendung: /ah bid <id> <amount>'
   usage-buy: '<!italic><#ff6b6b>Verwendung: /ah buy <id>'
-  usage-admin: '<!italic><#ffd166>/ah admin <reload|remove>'
+  usage-admin: <!italic><#ffd166>/ah admin <reload|remove>
   usage-admin-remove: '<!italic><#ff6b6b>Verwendung: /ah admin remove <id>'
-  unknown-admin-subcommand: '<!italic><#ff6b6b>Unbekannter Admin-Unterbefehl.'
-  no-claimable-auctions: '<!italic><#ffd166>Keine abholbaren Auktionen gefunden.'
-  claim-completed: '<!italic><#5fffb3>Abholung abgeschlossen.'
+  unknown-admin-subcommand: <!italic><#ff6b6b>Unbekannter Admin-Unterbefehl.
+  no-claimable-auctions: <!italic><#ffd166>Keine abholbaren Auktionen gefunden.
+  claim-completed: <!italic><#5fffb3>Abholung abgeschlossen.
   available-locales: '<!italic><#ffd166>Verfuegbare Sprachen: <#ffffff><locales></#ffffff>'
-  search-results: '<!italic><#5fffb3>Die Suche ergab <#ffffff><count></#ffffff> Treffer. Oeffne das Menue zum Durchsehen.'
-  locale-changed: '<!italic><#5fffb3>Deine Sprache wurde auf <#62d2ff><locale></#62d2ff> geaendert.'
+  search-results: <!italic><#5fffb3>Die Suche ergab <#ffffff><count></#ffffff> Treffer. Oeffne das Menue zum Durchsehen.
+  locale-changed: <!italic><#5fffb3>Deine Sprache wurde auf <#62d2ff><locale></#62d2ff> geaendert.
   help:
-    - '<!italic><gradient:#62d2ff:#5fffb3><bold>AuctionHousePro</bold></gradient>'
-    - '<!italic><#d8e6f0>/ah <#ffffff>oeffnet das Hauptmenue</#ffffff>'
-    - '<!italic><#d8e6f0>/ah sell <price> [buyNow] [30m|2h|1d] [increment]</#d8e6f0>'
-    - '<!italic><#d8e6f0>/ah bid <id> <amount></#d8e6f0>'
-    - '<!italic><#d8e6f0>/ah buy <id></#d8e6f0>'
-    - '<!italic><#d8e6f0>/ah claim [id]</#d8e6f0>'
-    - '<!italic><#d8e6f0>/ah language <code></#d8e6f0>'
-    - '<!italic><#d8e6f0>/ah admin <reload|remove></#d8e6f0>'
+  - <!italic><gradient:#62d2ff:#5fffb3><bold>AuctionHousePro</bold></gradient>
+  - <!italic><#d8e6f0>/ah <#ffffff>oeffnet das Hauptmenue</#ffffff>
+  - <!italic><#d8e6f0>/ah sell <price> [buyNow] [30m|2h|1d] [increment]</#d8e6f0>
+  - <!italic><#d8e6f0>/ah bid <id> <amount></#d8e6f0>
+  - <!italic><#d8e6f0>/ah buy <id></#d8e6f0>
+  - <!italic><#d8e6f0>/ah claim [id]</#d8e6f0>
+  - <!italic><#d8e6f0>/ah language <code></#d8e6f0>
+  - <!italic><#d8e6f0>/ah admin <reload|remove></#d8e6f0>
+  transaction-failed: <yellow>Änderung konnte nicht gespeichert werden. Versuche es erneut.
+  transaction-pending: <yellow>Schließe erforderliche Aufgaben ab, um diesen Pfad freizuschalten.
+  ledger-review: '<yellow>Status: <ids>'
+  ledger-resolved: <yellow>Abgeschlossen
+  usage-ledger: <yellow>/ah admin ledger [id applied|retry]
 gui:
   featured-lore:
-    - '<!italic><#ffd166><bold>FEATURED LISTING</bold></#ffd166>'
+  - <!italic><#ffd166><bold>FEATURED LISTING</bold></#ffd166>
   admin-lore:
-    - ''
-    - '<!italic><#ff9966>Admin: left click force-complete, right click return'
-  button-watchlist: '<!italic><#62d2ff>Watch List'
+  - ''
+  - '<!italic><#ff9966>Admin: left click force-complete, right click return'
+  button-watchlist: <!italic><#62d2ff>Watch List
   button-featured: '<!italic><#62d2ff>Featured: <#ffffff><state></#ffffff>'
   button-buy-now-filter: '<!italic><#62d2ff>Buy Now: <#ffffff><state></#ffffff>'
   browse-lore:
-    - '<!italic><#9fb3c8>Verkaeufer: <#ffffff><seller></#ffffff>'
-    - '<!italic><#9fb3c8>Aktuell: <#ffd166><current_bid></#ffd166>'
-    - '<!italic><#9fb3c8>Sofortkauf: <#ffd166><buy_now></#ffd166>'
-    - '<!italic><#9fb3c8>Endet in: <#62d2ff><time_left></#62d2ff>'
-    - '<!italic><#9fb3c8>ID: <#8ea2b5>#<id></#8ea2b5>'
-    - ''
-    - '<!italic><#5fffb3>Linksklick zum Bieten, Rechtsklick fuer Sofortkauf'
+  - '<!italic><#9fb3c8>Verkaeufer: <#ffffff><seller></#ffffff>'
+  - '<!italic><#9fb3c8>Aktuell: <#ffd166><current_bid></#ffd166>'
+  - '<!italic><#9fb3c8>Sofortkauf: <#ffd166><buy_now></#ffd166>'
+  - '<!italic><#9fb3c8>Endet in: <#62d2ff><time_left></#62d2ff>'
+  - '<!italic><#9fb3c8>ID: <#8ea2b5>#<id></#8ea2b5>'
+  - ''
+  - <!italic><#5fffb3>Linksklick zum Bieten, Rechtsklick fuer Sofortkauf
   expiring-lore:
-    - '<!italic><#ff6b6b><bold>ENDET BALD</bold></#ff6b6b>'
-    - '<!italic><#9fb3c8>Dieses Angebot laeuft bald ab.'
-  button-previous: '<!italic><#62d2ff>Vorherige Seite'
-  button-next: '<!italic><#62d2ff>Naechste Seite'
-  button-refresh: '<!italic><#5fffb3>Aktualisieren'
-  button-claims: '<!italic><#ffd166>Abholzentrum'
-  button-player-listings: '<!italic><#ffd166>Deine Angebote'
+  - <!italic><#ff6b6b><bold>ENDET BALD</bold></#ff6b6b>
+  - <!italic><#9fb3c8>Dieses Angebot laeuft bald ab.
+  button-previous: <!italic><#62d2ff>Vorherige Seite
+  button-next: <!italic><#62d2ff>Naechste Seite
+  button-refresh: <!italic><#5fffb3>Aktualisieren
+  button-claims: <!italic><#ffd166>Abholzentrum
+  button-player-listings: <!italic><#ffd166>Deine Angebote
   button-sort: '<!italic><#62d2ff>Sortierung: <#ffffff><mode></#ffffff>'
-  button-category: '<!italic><#62d2ff>Kategorie'
-  button-search: '<!italic><#62d2ff>Suchen'
+  button-category: <!italic><#62d2ff>Kategorie
+  button-search: <!italic><#62d2ff>Suchen
+  titles:
+    browser: <!italic><aqua>Auktionshaus
+    admin: <!italic><aqua>Auktionsverwaltung
+    claims: <!italic><aqua>Abholzentrum
+    listings: <!italic><aqua>Meine Angebote
+    watched: <!italic><aqua>Beobachtungsliste

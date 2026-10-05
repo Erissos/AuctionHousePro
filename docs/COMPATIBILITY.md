@@ -37,3 +37,9 @@ SHA-256: 6a642e40b33e1a25969150d33c8256cadacd8d99d7b622761caab8bcea2606e6
 ```
 
 GitHub Release, bu testte kullanılan JAR'ı ve `SHA256SUMS.txt` dosyasını içerir. Makineye özel yolları içermeyen test sonuçları release içindeki `compatibility.json` dosyasında yer alır. Sunucu/eklenti yükseltmesinden önce verileri yedekleyin ve eski JAR'ı sunucu durmuşken değiştirin.
+
+## 1.1.1-SNAPSHOT düzeltme doğrulaması
+
+Geliştirme buildinin güncel çalışma zamanı sonuçları çalışma alanındaki `verification/results.json` ve `verification/regression/results.json` dosyalarındadır. Önceki 1.1.0 sürümünün sonuçları `verification/release-1.1.0-results.json` olarak korunur. Yeni regresyon aracı eski dil dosyalarıyla yükseltmeyi, gerçek SQLite işlemlerini, gerçek envanterleri ve kontrollü Vault sağlayıcısıyla başarısız/eşzamanlı para-eşya işlemlerini sınar. Araç yalnızca ayrı geçici Paper dünyalarında çalıştırılır.
+
+Ek doğrulamada gerçek MySQL 8.4.7 bağlantısı/şema geçişi ve ağ protokolü istemcileri de sınandı; sonuçlar `verification/regression/mysql-results.json` ve `verification/client/results.json` içindedir. 26.2 ağ istemcisi kontrolü istemci protokol desteği nedeniyle atlandı; Paper/SQL deneyi geçti. Grafik Minecraft istemcisi, canlı BetterEconomy/diğer üretim Vault sağlayıcıları ve her üçüncü taraf bölge koruma eklentisi kapsam dışındadır. Para sağlayıcısı ve Paper oyuncu envanteri eklenti SQL/YAML kaydıyla ortak atomik işlem sunmaz; belirsiz sonuçlar [kurtarma kurallarına](RECOVERY.md) göre incelemeye alınır.

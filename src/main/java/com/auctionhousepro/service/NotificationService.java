@@ -12,7 +12,8 @@ import java.util.concurrent.ConcurrentHashMap;
 
 public final class NotificationService {
     private final LocaleManager localeManager;
-    private final Map<UUID, Component> pendingClaimNotice;
+    private final Map<UUID, Notice> pendingClaimNotice;
+    private record Notice(String path, Map<String,String> values) {}
 
     public NotificationService(LocaleManager localeManager) {
         this.localeManager = localeManager;
@@ -20,10 +21,15 @@ public final class NotificationService {
     }
 
     public void notify(UUID playerId, String path, Map<String, String> placeholders) {
+        if (!Bukkit.isPrimaryThread()) {
+            var plugin=com.auctionhousepro.AuctionHouseProPlugin.getInstance();
+            if (plugin.isEnabled()) Bukkit.getScheduler().runTask(plugin, () -> notify(playerId,path,Map.copyOf(placeholders)));
+            return;
+        }
         Player player = Bukkit.getPlayer(playerId);
         if (player == null) {
             if ("messages.claim-ready".equals(path)) {
-                pendingClaimNotice.put(playerId, localeManager.message(localeManager.playerLocale(playerId), path, Placeholder.component("prefix", Component.empty())));
+                pendingClaimNotice.put(playerId, new Notice(path,Map.copyOf(placeholders)));
             }
             return;
         }
@@ -34,13 +40,16 @@ public final class NotificationService {
     }
 
     public void sendPendingNotices(Player player) {
-        Component component = pendingClaimNotice.remove(player.getUniqueId());
-        if (component != null) {
-            player.sendMessage(component);
-        }
+        Notice notice = pendingClaimNotice.remove(player.getUniqueId());
+        if (notice != null) notify(player.getUniqueId(),notice.path(),notice.values());
     }
 
     public void broadcast(String path, Map<String, String> placeholders) {
+        if (!Bukkit.isPrimaryThread()) {
+            var plugin=com.auctionhousepro.AuctionHouseProPlugin.getInstance();
+            if (plugin.isEnabled()) Bukkit.getScheduler().runTask(plugin, () -> broadcast(path,Map.copyOf(placeholders)));
+            return;
+        }
         for (Player player : Bukkit.getOnlinePlayers()) {
             notify(player.getUniqueId(), path, placeholders);
         }

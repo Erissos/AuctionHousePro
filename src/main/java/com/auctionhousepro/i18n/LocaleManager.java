@@ -47,6 +47,9 @@ public final class LocaleManager {
     }
 
     public void reload() {
+        com.auctionhousepro.util.StrictYaml.load(playerLocaleFile);
+        File[] files=new File(plugin.getDataFolder(),"lang").listFiles((directory,name)->name.endsWith(".yml"));
+        if (files!=null) for (File file:files) com.auctionhousepro.util.StrictYaml.load(file);
         locales.clear();
         playerLocales.clear();
         loadLocales();
@@ -131,9 +134,13 @@ public final class LocaleManager {
     public void setPlayerLocale(UUID playerId, String locale) {
         String normalized = resolveLocale(locale);
         if (normalized == null) throw new IllegalArgumentException("Unknown language: " + locale);
-        playerLocales.put(playerId, normalized);
-        playerLocaleConfig.set(playerId.toString(), normalized);
-        savePlayerLocales();
+        String previous=playerLocales.put(playerId,normalized);
+        playerLocaleConfig.set(playerId.toString(),normalized);
+        try { savePlayerLocales(); }
+        catch (RuntimeException failure) {
+            if (previous==null) playerLocales.remove(playerId); else playerLocales.put(playerId,previous);
+            playerLocaleConfig.set(playerId.toString(),previous); throw failure;
+        }
     }
 
     public Collection<String> availableLocales() {
@@ -168,7 +175,7 @@ public final class LocaleManager {
 
         for (File file : files) {
             String locale = file.getName().replace(".yml", "");
-            YamlConfiguration language = YamlConfiguration.loadConfiguration(file);
+            YamlConfiguration language = com.auctionhousepro.util.StrictYaml.load(file);
             var resource = plugin.getResource("lang/" + file.getName());
             if (resource != null) {
                 try (var reader = new InputStreamReader(resource, StandardCharsets.UTF_8)) {
@@ -190,22 +197,23 @@ public final class LocaleManager {
             }
         }
 
-        this.playerLocaleConfig = YamlConfiguration.loadConfiguration(playerLocaleFile);
+        this.playerLocaleConfig = com.auctionhousepro.util.StrictYaml.load(playerLocaleFile);
         ConfigurationSection section = playerLocaleConfig.getConfigurationSection("");
         if (section == null) {
             return;
         }
 
         for (String key : section.getKeys(false)) {
-            playerLocales.put(UUID.fromString(key), normalize(playerLocaleConfig.getString(key, configManager.defaultLocale())));
+            try { playerLocales.put(UUID.fromString(key), normalize(playerLocaleConfig.getString(key, configManager.defaultLocale()))); }
+            catch (IllegalArgumentException invalid) { plugin.getLogger().warning("Ignoring invalid player locale key: "+key); }
         }
     }
 
     private void savePlayerLocales() {
         try {
-            playerLocaleConfig.save(playerLocaleFile);
+            com.auctionhousepro.util.AtomicFiles.write(playerLocaleFile.toPath(),playerLocaleConfig.saveToString());
         } catch (IOException exception) {
-            plugin.getLogger().warning("Failed to save player locales: " + exception.getMessage());
+            throw new IllegalStateException("Failed to save player locales",exception);
         }
     }
 

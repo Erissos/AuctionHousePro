@@ -26,12 +26,19 @@ public final class ConfigManager {
     }
 
     public void reload() {
+        // Validate every input before replacing the active configuration on reload.
+        com.auctionhousepro.util.StrictYaml.load(new File(plugin.getDataFolder(),"config.yml"));
+        com.auctionhousepro.util.StrictYaml.load(new File(plugin.getDataFolder(),"menus.yml"));
+        com.auctionhousepro.util.StrictYaml.load(new File(plugin.getDataFolder(),"webhook.yml"));
+        File[] languageFiles=new File(plugin.getDataFolder(),"lang").listFiles((directory,name) -> name.endsWith(".yml"));
+        if (languageFiles!=null) for (File languageFile:languageFiles) com.auctionhousepro.util.StrictYaml.load(languageFile);
+
         plugin.reloadConfig();
         this.config = plugin.getConfig();
         File menusFile = new File(plugin.getDataFolder(), "menus.yml");
-        this.menus = YamlConfiguration.loadConfiguration(menusFile);
+        this.menus = com.auctionhousepro.util.StrictYaml.load(menusFile);
         File webhookFile = new File(plugin.getDataFolder(), "webhook.yml");
-        this.webhook = YamlConfiguration.loadConfiguration(webhookFile);
+        this.webhook = com.auctionhousepro.util.StrictYaml.load(webhookFile);
     }
 
     public FileConfiguration config() {
@@ -78,6 +85,8 @@ public final class ConfigManager {
         return config.getInt("database.pool.minimum-idle", 2);
     }
 
+    private double rate(double value,double fallback) { return Double.isFinite(value) ? Math.max(0,Math.min(1,value)) : fallback; }
+
     public double listingFee() {
         return config.getDouble("auction.listing-fee", 25.0D);
     }
@@ -87,19 +96,19 @@ public final class ConfigManager {
     }
 
     public double taxRate() {
-        return config.getDouble("auction.tax-rate", 0.02D);
+        return rate(config.getDouble("auction.tax-rate",0.02D),0.02D);
     }
 
     public double taxRate(OfflinePlayer player) {
-        return taxRate() * segmentMultiplier(player, "tax-rate-multiplier", 1.0D);
+        return rate(taxRate() * segmentMultiplier(player,"tax-rate-multiplier",1.0D),taxRate());
     }
 
     public double commissionRate() {
-        return config.getDouble("auction.commission-rate", 0.05D);
+        return rate(config.getDouble("auction.commission-rate",0.05D),0.05D);
     }
 
     public double commissionRate(OfflinePlayer player) {
-        return commissionRate() * segmentMultiplier(player, "commission-rate-multiplier", 1.0D);
+        return rate(commissionRate() * segmentMultiplier(player,"commission-rate-multiplier",1.0D),commissionRate());
     }
 
     public int defaultDurationMinutes() {

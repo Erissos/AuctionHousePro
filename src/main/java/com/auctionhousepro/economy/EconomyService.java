@@ -20,15 +20,15 @@ public final class EconomyService {
     }
 
     public boolean has(OfflinePlayer player, double amount) {
-        return economy != null && economy.has(player, amount);
+        return EconomyLedger.valid(amount) && economy != null && economy.has(player, amount);
     }
 
     public boolean withdraw(OfflinePlayer player, double amount) {
-        return economy != null && economy.withdrawPlayer(player, amount).transactionSuccess();
+        return EconomyLedger.valid(amount) && economy != null && economy.withdrawPlayer(player, amount).transactionSuccess();
     }
 
     public boolean deposit(OfflinePlayer player, double amount) {
-        return economy != null && economy.depositPlayer(player, amount).transactionSuccess();
+        return EconomyLedger.valid(amount) && economy != null && economy.depositPlayer(player, amount).transactionSuccess();
     }
 
     public String format(double amount) {

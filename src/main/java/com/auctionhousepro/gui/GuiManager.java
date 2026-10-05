@@ -97,26 +97,41 @@ public final class GuiManager implements Listener {
     }
 
     private void render(Player player, MenuSession session) {
-        switch (session.type) {
-            case BROWSER -> auctionService.search(session.filter).thenAccept(auctions -> Bukkit.getScheduler().runTask(plugin, () -> draw(player, session, auctions, "browser")));
-            case CLAIMS -> auctionService.claimable(player.getUniqueId()).thenAccept(auctions -> Bukkit.getScheduler().runTask(plugin, () -> draw(player, session, auctions, "claims")));
-            case LISTINGS -> auctionService.playerListings(player.getUniqueId()).thenAccept(auctions -> Bukkit.getScheduler().runTask(plugin, () -> draw(player, session, auctions, "browser")));
-            case ADMIN -> auctionService.search(AuctionFilter.defaultFilter()).thenAccept(auctions -> Bukkit.getScheduler().runTask(plugin, () -> draw(player, session, auctions, "admin")));
-        }
+        long request=++session.revision;
+        session.loading=true;
+        String key=session.type==MenuType.CLAIMS ? "claims" : session.type==MenuType.ADMIN ? "admin" : "browser";
+        java.util.concurrent.CompletableFuture<List<Auction>> query=switch (session.type) {
+            case BROWSER -> auctionService.search(session.filter);
+            case CLAIMS -> auctionService.claimable(player.getUniqueId());
+            case LISTINGS -> auctionService.playerListings(player.getUniqueId());
+            case ADMIN -> auctionService.search(AuctionFilter.defaultFilter());
+        };
+        query.whenComplete((auctions,failure) -> {
+            if (!plugin.isEnabled()) return;
+            Bukkit.getScheduler().runTask(plugin,() -> {
+                if (sessions.get(player.getUniqueId())!=session || session.revision!=request || !player.isOnline()) return;
+                session.loading=false;
+                if (failure!=null) { player.sendMessage(localeManager.exception(player,failure)); return; }
+                draw(player,session,auctions,key);
+            });
+        });
     }
 
     private void draw(Player player, MenuSession session, List<Auction> auctions, String menuKey) {
         FileConfiguration menus = configManager.menus();
-        int size = menus.getInt(menuKey + ".size", 54);
-        Component title = miniMessage.deserialize(menus.getString(menuKey + ".title", "<#62d2ff><bold>AuctionHousePro</bold>"))
+        int size = Math.max(9,Math.min(54,((menus.getInt(menuKey + ".size",54)+8)/9)*9));
+        String titlePath="gui.titles."+(session.type==MenuType.LISTINGS ? "listings" : menuKey);
+        String translated=localeManager.string(localeManager.playerLocale(player),titlePath);
+        Component title = miniMessage.deserialize(translated.equals(titlePath) ? menus.getString(menuKey + ".title", "<#62d2ff><bold>AuctionHousePro</bold>") : translated)
             .decoration(TextDecoration.ITALIC, false);
         Inventory inventory = session.inventory;
-        boolean requiresNewInventory = inventory == null || inventory.getSize() != size || !menuKey.equals(session.menuKey);
+        boolean requiresNewInventory = inventory == null || inventory.getSize() != size || !menuKey.equals(session.menuKey) || !title.equals(session.title);
         if (requiresNewInventory) {
             MenuHolder holder = new MenuHolder(player.getUniqueId());
             inventory = Bukkit.createInventory(holder, size, title);
             session.inventory = inventory;
             session.menuKey = menuKey;
+            session.title=title;
         } else if (inventory != null) {
             inventory.clear();
         }
@@ -125,7 +140,7 @@ public final class GuiManager implements Listener {
         }
         fillBackground(inventory, menuKey);
 
-        List<Integer> contentSlots = parseSlots(menus.getString(menuKey + ".content-slots", "10-16,19-25,28-34"));
+        List<Integer> contentSlots = parseSlots(menus.getString(menuKey + ".content-slots", "10-16,19-25,28-34")).stream().filter(slot -> slot>=0 && slot<size).toList();
         session.slotToAuction.clear();
 
         List<Auction> pageItems = paginate(auctions, session.page, contentSlots.size());
@@ -323,15 +338,27 @@ public final class GuiManager implements Listener {
             return;
         }
         MenuSession session = sessions.get(player.getUniqueId());
-        if (session != null) {
-            session.inventory = null;
-        }
+        if (session!=null && (session.inventory==null || session.inventory==event.getInventory())) sessions.remove(player.getUniqueId(),session);
+    }
+
+    @EventHandler public void onDrag(org.bukkit.event.inventory.InventoryDragEvent event) {
+        if (event.getView().getTopInventory().getHolder() instanceof MenuHolder
+            && event.getRawSlots().stream().anyMatch(slot -> slot<event.getView().getTopInventory().getSize())) event.setCancelled(true);
+    }
+    @EventHandler public void onOpen(org.bukkit.event.inventory.InventoryOpenEvent event) {
+        MenuSession session=sessions.get(event.getPlayer().getUniqueId());
+        if (session!=null && session.inventory!=event.getInventory()) sessions.remove(event.getPlayer().getUniqueId(),session);
+    }
+    @EventHandler public void onQuit(org.bukkit.event.player.PlayerQuitEvent event) { sessions.remove(event.getPlayer().getUniqueId()); ((com.auctionhousepro.service.impl.AuctionServiceImpl)auctionService).releasePlayer(event.getPlayer().getUniqueId()); }
+    public void refreshLanguage(Player player) {
+        MenuSession session=sessions.get(player.getUniqueId());
+        if (session!=null) render(player,session);
     }
 
     private void refreshOpenMenus() {
         for (Player player : Bukkit.getOnlinePlayers()) {
             MenuSession session = sessions.get(player.getUniqueId());
-            if (session == null || session.inventory == null) {
+            if (session == null || session.inventory == null || session.loading) {
                 continue;
             }
             if (!(player.getOpenInventory().getTopInventory().getHolder() instanceof MenuHolder)) {
@@ -401,18 +428,21 @@ public final class GuiManager implements Listener {
     private List<Integer> parseSlots(String input) {
         List<Integer> slots = new ArrayList<>();
         for (String part : input.split(",")) {
+            try {
             String trimmed = part.trim();
             if (trimmed.contains("-")) {
                 String[] range = trimmed.split("-");
                 int from = Integer.parseInt(range[0]);
                 int to = Integer.parseInt(range[1]);
-                for (int slot = from; slot <= to; slot++) {
+                for (int slot = Math.max(0,from); slot <= Math.min(53,to); slot++) {
                     slots.add(slot);
                 }
             } else {
-                slots.add(Integer.parseInt(trimmed));
+                int slot=Integer.parseInt(trimmed); if (slot>=0 && slot<54) slots.add(slot);
             }
+            } catch (RuntimeException invalid) { plugin.getLogger().warning("Invalid menu slot range: "+part); }
         }
+        if (slots.isEmpty()) for (int slot=10;slot<=16;slot++) slots.add(slot);
         return slots;
     }
 
@@ -482,6 +512,9 @@ public final class GuiManager implements Listener {
         private int page;
         private Inventory inventory;
         private String menuKey;
+        private Component title;
+        private long revision;
+        private boolean loading;
         private final Map<Integer, Long> slotToAuction;
 
         private MenuSession(MenuType type, AuctionFilter filter, int page) {

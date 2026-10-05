@@ -24,6 +24,76 @@ public final class SqlAuctionRepository implements AuctionRepository {
     private final AuctionHouseProPlugin plugin;
     private final DatabaseManager databaseManager;
 
+    @Override
+    public CompletableFuture<Auction> insertWithReceipt(Auction auction, String debitId) {
+        return CompletableFuture.supplyAsync(() -> {
+            String sql="INSERT INTO auctions (seller_id, highest_bidder_id, item_data, type, status, category, starting_price, current_bid, buy_now_price, bid_increment, created_at, expires_at, seller_claimed, buyer_claimed, searchable_text, watch_count, view_count, bid_count, featured_score) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+            try (Connection connection=databaseManager.connection()) {
+                connection.setAutoCommit(false);
+                try (PreparedStatement statement=connection.prepareStatement(sql,Statement.RETURN_GENERATED_KEYS)) {
+                    populateAuction(statement,auction); statement.executeUpdate();
+                    Auction inserted;
+                    try (ResultSet keys=statement.getGeneratedKeys()) {
+                        if (!keys.next()) throw new SQLException("No auction ID was generated");
+                        inserted=auction.withId(keys.getLong(1));
+                    }
+                    com.auctionhousepro.economy.EconomyLedger.commitDebit(connection,debitId);
+                    connection.commit(); return inserted;
+                } catch (Throwable failure) { connection.rollback(); throw failure; }
+            } catch (SQLException failure) { throw new IllegalStateException("Failed to insert auction with payment receipt",failure); }
+        });
+    }
+
+    @Override
+    public CompletableFuture<Boolean> transition(Auction expected,Auction updated,
+            List<com.auctionhousepro.model.EconomyCredit> credits,Long acceptedOfferId,
+            com.auctionhousepro.model.DeliveryPayload delivery,String debitId) {
+        return CompletableFuture.supplyAsync(() -> {
+            String sql="UPDATE auctions SET seller_id=?, highest_bidder_id=?, item_data=?, type=?, status=?, category=?, starting_price=?, current_bid=?, buy_now_price=?, bid_increment=?, created_at=?, expires_at=?, seller_claimed=?, buyer_claimed=?, searchable_text=?, watch_count=?, view_count=?, bid_count=?, featured_score=? WHERE id=? AND status=? AND current_bid=? AND seller_claimed=? AND buyer_claimed=? AND expires_at=?";
+            boolean mustBeLive = expected.status()==AuctionStatus.ACTIVE
+                    && (updated.status()==AuctionStatus.ACTIVE || updated.status()==AuctionStatus.SOLD);
+            if (mustBeLive) sql += " AND expires_at > ?";
+            try (Connection connection=databaseManager.connection()) {
+                connection.setAutoCommit(false);
+                try {
+                    try (PreparedStatement statement=connection.prepareStatement(sql)) {
+                        populateAuction(statement,updated);
+                        statement.setLong(20,expected.id()); statement.setString(21,expected.status().name()); statement.setDouble(22,expected.currentBid());
+                        statement.setBoolean(23,expected.sellerClaimed()); statement.setBoolean(24,expected.buyerClaimed()); statement.setLong(25,expected.expiresAt().toEpochMilli());
+                        if (mustBeLive) statement.setLong(26,System.currentTimeMillis());
+                        if (statement.executeUpdate()!=1) { connection.rollback(); return false; }
+                    }
+                    if (acceptedOfferId!=null) {
+                        try (PreparedStatement statement=connection.prepareStatement("UPDATE auction_offers SET status='ACCEPTED', updated_at=? WHERE id=? AND auction_id=? AND status='PENDING'")) {
+                            statement.setLong(1,System.currentTimeMillis()); statement.setLong(2,acceptedOfferId); statement.setLong(3,expected.id());
+                            if (statement.executeUpdate()!=1) { connection.rollback(); return false; }
+                        }
+                    }
+                    if (expected.status()==AuctionStatus.ACTIVE && updated.status()!=AuctionStatus.ACTIVE) {
+                        List<com.auctionhousepro.model.EconomyCredit> refunds=new ArrayList<>();
+                        try (PreparedStatement statement=connection.prepareStatement("SELECT id,buyer_id,amount FROM auction_offers WHERE auction_id=? AND status='PENDING'")) {
+                            statement.setLong(1,expected.id());
+                            try (ResultSet result=statement.executeQuery()) { while (result.next()) refunds.add(new com.auctionhousepro.model.EconomyCredit("offer-refund:"+result.getLong(1),UUID.fromString(result.getString(2)),result.getDouble(3))); }
+                        }
+                        for (var refund:refunds) com.auctionhousepro.economy.EconomyLedger.insertCredit(connection,databaseManager.isMysql(),refund);
+                        try (PreparedStatement statement=connection.prepareStatement("UPDATE auction_offers SET status='REJECTED', updated_at=? WHERE auction_id=? AND status='PENDING'")) {
+                            statement.setLong(1,System.currentTimeMillis()); statement.setLong(2,expected.id()); statement.executeUpdate();
+                        }
+                    }
+                    for (var credit:credits) com.auctionhousepro.economy.EconomyLedger.insertCredit(connection,databaseManager.isMysql(),credit);
+                    if (delivery!=null) {
+                        try (PreparedStatement statement=connection.prepareStatement("INSERT INTO delivery_box (player_id,item_data,source_auction_id,reason,created_at,state) VALUES (?,?,?,?,?,'PENDING')")) {
+                            statement.setString(1,delivery.playerId().toString()); statement.setString(2,ItemSerializer.serialize(delivery.item()));
+                            statement.setLong(3,delivery.auctionId()); statement.setString(4,delivery.reason()); statement.setLong(5,System.currentTimeMillis()); statement.executeUpdate();
+                        }
+                    }
+                    com.auctionhousepro.economy.EconomyLedger.commitDebit(connection,debitId);
+                    connection.commit(); return true;
+                } catch (Throwable failure) { connection.rollback(); throw failure; }
+            } catch (SQLException failure) { throw new IllegalStateException("Failed atomic auction transition",failure); }
+        });
+    }
+
     public SqlAuctionRepository(AuctionHouseProPlugin plugin, DatabaseManager databaseManager) {
         this.plugin = plugin;
         this.databaseManager = databaseManager;

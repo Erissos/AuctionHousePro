@@ -2,6 +2,17 @@
 
 AuctionHousePro, Paper 1.20.6–26.2 sunucuları için geliştirilmiş modern bir açık artırma eklentisidir. Oyuncular eşya listeleyebilir, teklif verebilir, hemen satın al kullanabilir, süresi dolan veya satılan açık artırmaları teslim alabilir ve kendi eklenti dilini seçebilir.
 
+## Geliştirme sürümü: 1.1.1-SNAPSHOT
+
+3 Ekim 2026 incelemesindeki dil, kayıt ve işlem güvenliği sorunlarının düzeltmeleri bu kaynakta bulunur. GitHub'daki 1.1.0 yayımlanmış sürümünden sonra gelen, henüz yayımlanmamış geliştirme buildidir; test sunucusunda doğrulanır. Paper 1.20.6 API ve Java 21 derleme hedefi korunur.
+
+Oyuncuya özel mesaj/düğme çevirilerine ek olarak `lang/<bölge>.yml` içinde `gui.titles.browser/admin/claims/listings` pencere başlıkları bulunur. Dil değişimi açık menüyü yeniden oluşturur. Yerleşim ve malzemeler `menus.yml` içinde kalır; bekleyen eski sorgu yeni/kapatılmış bir ekranı açamaz. Kurulu dil dosyaları korunur, eksik anahtarlar JAR içindeki varsayılan paketten tamamlanır.
+
+
+MySQL 8.4.7 şema/işlem regresyonları ve bağlı ağ istemcisiyle oyuncuya özel dil/menü kontrolleri eklenmiştir. Doğrulama kapsamı [uyumluluk belgesindedir](docs/COMPATIBILITY.md).
+
+[Düzeltme notları](CHANGELOG.md) · [Kurtarma ve teslimat kuralları](docs/RECOVERY.md).
+
 ## Sürüm 1.1.0
 
 - Yapımcı: **Erissos**.
