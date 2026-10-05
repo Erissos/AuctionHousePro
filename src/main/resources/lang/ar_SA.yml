@@ -46,6 +46,7 @@ statuses:
   cancelled: Cancelled
   expired: Expired
 messages:
+  integration-denied: "<red>لا تسمح هذه المنطقة أو الجزيرة بهذا الإجراء. تحقّق من الأذونات أو انتقل إلى مكان يسمح به.</red>"
   general-help: '<gray>الأوامر: /<command> menu | /<command> help | /<command> language [code] | /<command> reload</gray>'
   language-info: '<gray>لغتك: <language>. اللغات المتاحة: <languages>.</gray>'
   language-invalid: '<red>لغة غير معروفة. اللغات المتاحة: <languages>.</red>'

@@ -46,6 +46,7 @@ statuses:
   cancelled: Cancelled
   expired: Expired
 messages:
+  integration-denied: "<red>Dit gebied of eiland staat deze actie niet toe. Controleer de rechten of ga naar een plek waar het wel mag.</red>"
   general-help: '<gray>Commando’s: /<command> menu | /<command> help | /<command> language [code] | /<command> reload</gray>'
   language-info: '<gray>Jouw taal: <language>. Beschikbaar: <languages>.</gray>'
   language-invalid: '<red>Onbekende taal. Beschikbaar: <languages>.</red>'

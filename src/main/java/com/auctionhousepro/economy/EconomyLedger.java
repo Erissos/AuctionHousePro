@@ -34,6 +34,12 @@ public final class EconomyLedger {
         }
     }
     public CompletableFuture<String> debit(UUID player, double amount) {
+        return debit(player, amount, () -> {});
+    }
+
+    /** A guard runs on the server thread immediately before withdrawal, after queued SQL work. */
+    public CompletableFuture<String> debit(UUID player, double amount, Runnable guard) {
+        Objects.requireNonNull(guard, "guard");
         if (!valid(amount)) return CompletableFuture.failedFuture(new LocalizedException("messages.invalid-number"));
         String id="debit:"+UUID.randomUUID();
         return CompletableFuture.runAsync(() -> {
@@ -46,7 +52,7 @@ public final class EconomyLedger {
                 statement.setString(1,id); statement.setString(2,player.toString()); statement.setDouble(3,amount);
                 statement.setLong(4,System.currentTimeMillis()); statement.executeUpdate();
             } catch (SQLException failure) { throw new IllegalStateException(failure); }
-        }).thenCompose(unused -> apply(id)).thenApply(unused -> id);
+        }).thenCompose(unused -> apply(id, guard)).thenApply(unused -> id);
     }
     public CompletableFuture<Void> refund(String debitId) {
         if (debitId == null) return CompletableFuture.completedFuture(null);
@@ -107,18 +113,20 @@ public final class EconomyLedger {
             catch (SQLException failure) { throw new IllegalStateException(failure); }
         });
     }
-    private synchronized CompletableFuture<Void> apply(String id) {
+    private CompletableFuture<Void> apply(String id) { return apply(id, () -> {}); }
+
+    private synchronized CompletableFuture<Void> apply(String id, Runnable guard) {
         CompletableFuture<Void> existing=inFlight.get(id);
         if (existing!=null) return existing;
         CompletableFuture<Void> result=new CompletableFuture<>();
         inFlight.put(id,result);
-        applyOnce(id).whenComplete((unused,failure) -> {
+        applyOnce(id, guard).whenComplete((unused,failure) -> {
             synchronized (this) { inFlight.remove(id,result); }
             if (failure==null) result.complete(null); else result.completeExceptionally(failure);
         });
         return result;
     }
-    private CompletableFuture<Void> applyOnce(String id) {
+    private CompletableFuture<Void> applyOnce(String id, Runnable guard) {
         return CompletableFuture.supplyAsync(() -> {
             try (Connection connection=database.connection()) {
                 connection.setAutoCommit(false);
@@ -134,8 +142,13 @@ public final class EconomyLedger {
         }).thenCompose(operation -> {
             if (operation==null) return CompletableFuture.completedFuture(null);
             CompletableFuture<Boolean> transfer=new CompletableFuture<>();
+            java.util.concurrent.atomic.AtomicReference<LocalizedException> denied = new java.util.concurrent.atomic.AtomicReference<>();
             Runnable action=() -> {
                 try {
+                    if (operation.kind.equals("DEBIT")) {
+                        try { guard.run(); }
+                        catch (LocalizedException rejection) { denied.set(rejection); transfer.complete(false); return; }
+                    }
                     var player=Bukkit.getOfflinePlayer(operation.player);
                     boolean success=operation.amount==0 || (operation.kind.equals("DEBIT")
                         ? economy.has(player,operation.amount) && economy.withdraw(player,operation.amount)
@@ -152,6 +165,7 @@ public final class EconomyLedger {
                     try (Connection connection=database.connection()) { update(connection,id,state); }
                     catch (SQLException problem) { throw new IllegalStateException("Payment outcome is uncertain: "+id,problem); }
                     if (failure!=null) throw new IllegalStateException("Payment requires review: "+id,failure);
+                    if (denied.get()!=null) throw denied.get();
                     if (!Boolean.TRUE.equals(success)) throw new LocalizedException("messages.not-enough-money");
                 });
             }).thenCompose(future -> future);

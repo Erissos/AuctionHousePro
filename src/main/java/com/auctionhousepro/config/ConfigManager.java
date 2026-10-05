@@ -27,7 +27,8 @@ public final class ConfigManager {
 
     public void reload() {
         // Validate every input before replacing the active configuration on reload.
-        com.auctionhousepro.util.StrictYaml.load(new File(plugin.getDataFolder(),"config.yml"));
+        var nextConfig = com.auctionhousepro.util.StrictYaml.load(new File(plugin.getDataFolder(),"config.yml"));
+        dev.desperis.integration.IntegrationService.validateConfig(nextConfig);
         com.auctionhousepro.util.StrictYaml.load(new File(plugin.getDataFolder(),"menus.yml"));
         com.auctionhousepro.util.StrictYaml.load(new File(plugin.getDataFolder(),"webhook.yml"));
         File[] languageFiles=new File(plugin.getDataFolder(),"lang").listFiles((directory,name) -> name.endsWith(".yml"));
@@ -102,6 +103,7 @@ public final class ConfigManager {
     public double taxRate(OfflinePlayer player) {
         return rate(taxRate() * segmentMultiplier(player,"tax-rate-multiplier",1.0D),taxRate());
     }
+
 
     public double commissionRate() {
         return rate(config.getDouble("auction.commission-rate",0.05D),0.05D);

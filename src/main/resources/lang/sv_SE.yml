@@ -46,6 +46,7 @@ statuses:
   cancelled: Cancelled
   expired: Expired
 messages:
+  integration-denied: "<red>Det här området eller den här ön tillåter inte åtgärden. Kontrollera behörigheterna eller gå till en tillåten plats.</red>"
   general-help: '<gray>Kommandon: /<command> menu | /<command> help | /<command> language [code] | /<command> reload</gray>'
   language-info: '<gray>Ditt språk: <language>. Tillgängliga: <languages>.</gray>'
   language-invalid: '<red>Okänt språk. Tillgängliga: <languages>.</red>'

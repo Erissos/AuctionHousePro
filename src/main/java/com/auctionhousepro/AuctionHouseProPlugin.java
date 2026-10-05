@@ -1,5 +1,6 @@
 package com.auctionhousepro;
 
+import dev.desperis.integration.IntegrationService;
 import com.auctionhousepro.api.AuctionHouseProApi;
 import com.auctionhousepro.command.AuctionCommand;
 import com.auctionhousepro.config.ConfigManager;
@@ -24,6 +25,7 @@ public final class AuctionHouseProPlugin extends JavaPlugin {
     private static AuctionHouseProPlugin instance;
 
     private ConfigManager configManager;
+    private IntegrationService integrations;
     private LocaleManager localeManager;
     private DatabaseManager databaseManager;
     private AuctionRepository auctionRepository;
@@ -46,6 +48,8 @@ public final class AuctionHouseProPlugin extends JavaPlugin {
         saveBundledLanguageResources();
 
         this.configManager = new ConfigManager(this);
+        this.integrations = new IntegrationService(this, configManager::config);
+        this.integrations.reload();
         this.localeManager = new LocaleManager(this, configManager);
         this.databaseManager = new DatabaseManager(this, configManager);
         this.databaseManager.initialize();
@@ -78,6 +82,7 @@ public final class AuctionHouseProPlugin extends JavaPlugin {
         if (auditLogService != null) {
             auditLogService.shutdown();
         }
+        if (integrations != null) integrations.close();
         if (databaseManager != null) {
             databaseManager.close();
         }
@@ -119,6 +124,8 @@ public final class AuctionHouseProPlugin extends JavaPlugin {
     public static AuctionHouseProPlugin getInstance() {
         return instance;
     }
+
+    public IntegrationService getIntegrations() { return integrations; }
 
     public ConfigManager getConfigManager() {
         return configManager;

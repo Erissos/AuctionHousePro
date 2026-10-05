@@ -46,6 +46,7 @@ statuses:
   cancelled: Cancelled
   expired: Expired
 messages:
+  integration-denied: "<red>Cette zone ou cette île ne permet pas cette action. Vérifie ses permissions ou rends-toi dans un lieu autorisé.</red>"
   general-help: '<gray>Commandes: /<command> menu | /<command> help | /<command> language [code] | /<command> reload</gray>'
   language-info: '<gray>Votre langue : <language>. Disponibles : <languages>.</gray>'
   language-invalid: '<red>Langue inconnue. Disponibles : <languages>.</red>'

@@ -46,6 +46,7 @@ statuses:
   cancelled: Cancelled
   expired: Expired
 messages:
+  integration-denied: "<red>Tato oblast nebo ostrov tuto akci nepovoluje. Zkontroluj oprávnění nebo se přesuň na povolené místo.</red>"
   general-help: '<gray>Příkazy: /<command> menu | /<command> help | /<command> language [code] | /<command> reload</gray>'
   language-info: '<gray>Tvůj jazyk: <language>. Dostupné: <languages>.</gray>'
   language-invalid: '<red>Neznámý jazyk. Dostupné: <languages>.</red>'

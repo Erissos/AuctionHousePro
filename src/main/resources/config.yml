@@ -1,54 +1,212 @@
+# ============================================================================
+# AuctionHousePro | Desperis ürünü
+# Geliştirici: erisos
+# Resmî site: https://desperis.com
+# Bu yapılandırmanın ürün sürümü: 1.1.1-SNAPSHOT
+# Desteklenen Paper sürümleri: 1.20.6 - 26.2 | Java 21 bytecode
+# ============================================================================
+# Dosyayı UTF-8 kaydedin; girintide TAB yerine boşluk kullanın.
+# Yorumlar çalışma mantığını açıklar; anahtar adlarını / Material kodlarını çevirmeyin.
+# Süre birimleri her seçenek yanında yazılıdır: 20 tick yaklaşık 1 saniye,
+# 1000 milisaniye = 1 saniye. Tick süreleri sunucu gecikmesinde uzayabilir.
+# Düzenlemeden önce yedek alın. Kaydedilen oyuncu verileri config değişikliğiyle
+# silinmez. Dil / menü metinleri ilgili lang, messages, gui veya menü dosyalarındadır.
+# ============================================================================
+
+# ==========================================================================
+# VERİTABANI | Veritabanını taşımadan önce yedek alın; mevcut kayıtlar otomatik olarak farklı veritabanına aktarılmaz.
 database:
+  # sqlite veya mysql. SQLite tek dosya kullanır; MySQL ayrı bir sunucu ve erişim bilgisi gerektirir.
   type: sqlite
+  # SQLite dosyasının eklenti veri klasörüne göre adı; mevcut veriye devam etmek için aynı adı koruyun.
   sqlite-file: auctions.db
+  # MySQL bağlantısı; yalnızca database.type: mysql olduğunda kullanılır.
   mysql:
+    # MySQL sunucusunun ana makine adı / IP adresi.
     host: localhost
+    # MySQL TCP portu; varsayılan 3306.
     port: 3306
+    # Mevcut MySQL veritabanı / katalog adı.
     database: auctionhouse
+    # Bağlantı kullanıcı adı; yalnızca gereken veritabanı izinlerini verin.
     username: root
+    # Bağlantı parolası. Örnek change-me değerini kurulumunuzun parolasıyla değiştirin.
     password: change-me
+    # JDBC sorgu parametreleri. TLS gereksinimini barındırma ortamınıza göre ayarlayın; örnek bağlantı SSL kullanmaz.
     parameters: '?useSSL=false&allowPublicKeyRetrieval=true&characterEncoding=utf8'
+  # HikariCP bağlantı havuzu; sunucunun MySQL bağlantı sınırını dikkate alın.
   pool:
+    # Aynı anda açık tutulabilecek en yüksek bağlantı sayısı.
     maximum-pool-size: 10
+    # Havuzdaki boşta bağlantı hedefi; maximum-pool-size değerini aşmamalıdır.
     minimum-idle: 2
+
+# ==========================================================================
+# MÜZAYEDE | Parasal işlemler Vault ve etkin bir ekonomi sağlayıcısı üzerinden yapılır.
 auction:
+  # Yeni ilan için varsayılan süre, dakika. 1440 = 24 saat.
   default-duration-minutes: 1440
+  # Menüde sunulan süre seçenekleri, dakika; her biri min / max aralığında olmalıdır.
   allowed-durations-minutes: [60, 180, 720, 1440, 4320]
+  # Komut / menü girişinde kabul edilen en kısa ilan süresi, dakika.
   min-duration-minutes: 15
+  # En uzun ilan süresi, dakika. 10080 = 7 gün.
   max-duration-minutes: 10080
+  # Bir oyuncunun aynı anda açabileceği ilan üst sınırı.
   max-active-listings: 30
+  # İlan açarken alınan sabit ücret, ekonomi para birimi.
   listing-fee: 25.0
+  # Satıcıya ödenen brüt satış tutarından kesilen vergi oranı; 0.02 = %2. Yüzde için 2 yazmayın.
   tax-rate: 0.02
+  # Satıcı kazancından kesilen komisyon oranı; 0.05 = %5.
   commission-rate: 0.05
+  # Bitişten önceki bu saniye aralığında teklif gelirse süre uzatılabilir.
   anti-snipe-window-seconds: 45
+  # Son an teklifinde eklenecek süre, saniye; varsayılan 60.
   anti-snipe-extension-seconds: 60
+  # Oyuncunun teklifleri arasındaki en kısa süre, milisaniye. 750 = 0.75 saniye.
   bid-cooldown-millis: 750
+  # Oyuncunun ilan açma denemeleri arasındaki süre, milisaniye. 1250 = 1.25 saniye.
   list-cooldown-millis: 1250
+  # Arama sonucunda tutulacak en fazla ilan; sayfalama bu sonuçlar üzerinden yapılır.
   max-search-results: 500
+  # Yüksek değerli ilan duyurusu eşiği, ekonomi para birimi.
   broadcast-rare-threshold: 50000.0
+
+# ==========================================================================
+# EŞYA FİLTRELERİ | Bukkit Material kodları ve NBT yolları çevrilmez; eşyanın gösterilen adı ayrı bir özelliktir.
 restrictions:
+  # Satışı her zaman yasaklanan malzemeler.
   blacklist-materials:
     - BEDROCK
     - BARRIER
+  # true: yalnızca whitelist-materials içindeki eşyalar satılabilir; kara liste de geçerlidir.
   whitelist-enabled: false
+  # İzin listesi açıkken satılabilen malzemeler. Açık bir izin listesi boşsa hiçbir eşya kabul edilmez.
   whitelist-materials: []
+  # Eşyada bulunursa ilanı engelleyen NBT / persistent-data yolları; eklentinize ait kesin anahtarları kullanın.
   nbt-blocked-keys:
     - PublicBukkitValues.illegal_plugin:illegal
+
+# ==========================================================================
+# DİL | Oyuncunun kişisel tercihi varsa varsayılan dil yerine kullanılır.
 localization:
+  # Yeni oyuncu / konsol için varsayılan paketlenmiş locale; örnek en_US veya tr_TR.
   default-locale: en_US
+  # Seçili dilde eksik anahtar bulunduğunda kullanılacak paketlenmiş dil.
   fallback-locale: en_US
+
+# ==========================================================================
+# DISCORD | Webhook paylaşımı isteğe bağlıdır; URL gizli bir erişim anahtarı gibi korunmalıdır.
 discord:
+  # Discord webhook bildirimlerini açar / kapatır.
   enabled: false
+  # Webhook URL; boş metin hiçbir endpoint tanımlamaz. Ek ayarlar webhook.yml üzerinden de yönetilebilir.
   webhook-url: ''
+  # Yüksek değerli yeni ilanları Discord kanalına bildirme seçeneği.
   notify-rare-listings: true
+  # Yüksek değerli tamamlanan satışları Discord kanalına bildirme seçeneği.
   notify-high-sales: true
+  # Yönetici için açıklama metni; webhook.yml dosyasını hatırlatır.
   note: 'Webhook settings can also be managed from webhook.yml.'
+
+# ==========================================================================
+# PERFORMANS | Tick aralıkları: sağlıklı bir sunucuda 20 tick yaklaşık 1 saniyedir.
 performance:
+  # Açık menülerin dinamik içerik yenileme aralığı, tick.
   refresh-ticks: 20
+  # Süresi dolan ilanları tarama aralığı, tick.
   expire-check-ticks: 40
+  # Eski uyumluluk anahtarı; bu sürümde ayrı bir ön yükleme yolu bu değeri okumaz, listeleme mevcut repository akışıyla yapılır.
   preload-active-auctions: true
+
+# ==========================================================================
+# SES | Bukkit Sound kodları; sunucunun en düşük desteklenen sürümünde geçerli sesler kullanın.
 sounds:
+  # Menü açma sesi.
   menu-open: BLOCK_AMETHYST_BLOCK_CHIME
+  # Düğme seçme sesi.
   menu-click: UI_BUTTON_CLICK
+  # Sayfa değiştirme sesi.
   menu-page: ITEM_BOOK_PAGE_TURN
+  # Menüde işlem tamamlama geri bildirimi.
   menu-action: ENTITY_EXPERIENCE_ORB_PICKUP
+
+# ============================================================================
+# ENTEGRASYONLAR | Koruma eklentileri isteğe bağlıdır; kurulu ve etkin olanlar algılanır.
+# Birden fazla koruma aynı yeri kapsıyorsa etkin sağlayıcılardan birinin reddi yeterlidir.
+# Eksik sağlayıcı normalde atlanır; required-providers ile zorunlu hale getirilebilir.
+# Bu bölüm her eklentide ortak olsa da yalnızca ilgili ürünün yaptığı işlem denetlenir.
+# Sağlayıcının kendi üyelik / trust / flag kuralları kullanılır; veri dosyası okunmaz.
+# API uyumsuzluğu için fail-closed davranışı geçerlidir. Tüm ticari sağlayıcı
+# sürümleri test edilmiş sayılmaz; doğrulama kapsamı docs/INTEGRATIONS.md içindedir.
+# ============================================================================
+integrations:
+  # Ana entegrasyon anahtarı. false koruma bağlantılarını kapatır; yerel dünya
+  # kısıtlamaları ve eklentinin kendi sahiplik / izin denetimleri ayrıca geçerlidir.
+  enabled: true
+  # true: etkin bir sağlayıcı hata verirse ilgili işlem reddedilir.
+  # false: API hatasında diğer etkin denetimler sürer, hatalı sağlayıcı izin engeli olmaz.
+  fail-closed: true
+  # Yokluğu kabul edilmeyen sağlayıcı ID listesi: towny, griefprevention,
+  # worldguard, lands, bentobox, superiorskyblock. [] = hiçbiri zorunlu değil.
+  # İlgili işlem denetimi (checks) kapalıysa veya bypass varsa bu zorunluluk atlanır.
+  required-providers: []
+  # Boş metin hiçbir izinle entegrasyonu atlamaz. İsterseniz yalnızca güvendiğiniz
+  # yöneticilere vereceğiniz özel bir permission yazın; bu bypass ortak dünya /
+  # zorunlu sağlayıcı denetimini de atlar. Eklentinin oyuncu sahipliği şartı atlanmaz.
+  bypass-permission: ''
+  # Yalnızca tanınan koruma / ada dünyasında herhangi bir alanın DIŞINDA kalınca
+  # uygulanır: allow veya deny. Normal, ada olmayan dünyaları ada eklentisi engellemez.
+  wilderness: allow
+  worlds:
+    # İzin verilen kesin dünya adları; [] = ortak entegrasyon katmanında tüm dünyalar.
+    # Ürünün kendi allowed-worlds / disabled-worlds listeleri ayrıca uygulanır.
+    allowed: []
+    # Engelli kesin dünya adları; bu liste allowed listesinden önceliklidir.
+    blocked: []
+  providers:
+    # Her anahtar sadece kurulu ve etkin olan ilgili eklentiyle bağlantıyı açar.
+    # false o sağlayıcının koruma denetimini bu üründe kapatır.
+    towny:
+      # Towny Advanced kasaba / arsa ve yerel eylem izinleri.
+      enabled: true
+    griefprevention:
+      # GriefPrevention claim / alt claim ve sahibin verdiği erişim izinleri.
+      enabled: true
+    worldguard:
+      # WorldGuard bölge / global bölge eylem flagleri; WorldEdit altyapısı gerekir.
+      enabled: true
+    lands:
+      # Lands arazi / area üyelik ve eylem flagleri.
+      enabled: true
+    bentobox:
+      # BentoBox ve onun yönettiği BSkyBlock / AcidIsland gibi oyun dünyaları.
+      enabled: true
+    superiorskyblock:
+      # SuperiorSkyblock2 adaları ve ada oyuncu izinleri.
+      enabled: true
+  checks:
+    # Ürünün alan / blok etkileşimlerini sağlayıcının ilgili yerel izniyle denetler.
+    interact: true
+    # Blok oluşturma / ekim eylemleri; işçi, zindan üretimi gibi ilgili özellikler.
+    build: true
+    # Blok kırma / hasat eylemleri; kabul edilemeyen bloklar işlenmez.
+    break: true
+    # Işınlama varış noktaları ve giriş izinleri.
+    teleport: true
+    # Hayvan, işçi, boss veya zindan mobu üretme eylemleri.
+    spawn: true
+    # Yerel korumanın ticaret / etkileşim izni üzerinden parasal oyuncu işlemleri.
+    trade: true
+    # Yasak bölgede yapılan eylemlerin ilerleme / ödül kazandırmasını denetler.
+    progress: true
+    # Hedef takibi ve konum bilgisinin koruma iznine uygun olmasını denetler.
+    track: true
+    # Ödül avcılığı / savaş eylemleri için yerel PvP izni; korumanın reddi korunur.
+    pvp: true
+    # Otomatik çevresel etkinlik etkileri; oyuncusuz etkilerde yerel çevre flagleri kullanılır.
+    event: true
+  # Sınırlı sağlayıcı durum / hata tanılaması. Normal işletimde false yeterlidir;
+  # veri tabanına veya claim dosyasına müdahale etmez.
+  debug: false

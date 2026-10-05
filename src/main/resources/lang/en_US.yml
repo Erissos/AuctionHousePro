@@ -45,6 +45,7 @@ statuses:
   cancelled: Cancelled
   expired: Expired
 messages:
+  integration-denied: "<red>This area or island does not allow that action. Check its permissions or move to an allowed location.</red>"
   general-help: '<gray>Commands: /<command> menu | /<command> help | /<command> language [code] | /<command> reload</gray>'
   language-info: '<gray>Current language: <language>. Available: <languages>.</gray>'
   language-invalid: '<red>Unknown language. Available: <languages>.</red>'

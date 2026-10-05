@@ -1,5 +1,6 @@
 package com.auctionhousepro.service.impl;
 
+import dev.desperis.integration.IntegrationService.Action;
 import com.auctionhousepro.AuctionHouseProPlugin;
 import com.auctionhousepro.api.AuctionService;
 import com.auctionhousepro.api.event.AuctionBidEvent;
@@ -150,6 +151,7 @@ public final class AuctionServiceImpl implements AuctionService {
             requireReady();
             if (isCoolingDown(sellerId,listingCooldowns,configManager.listCooldownMillis())) return CompletableFuture.failedFuture(new LocalizedException("messages.listing-cooldown"));
             return repository.findBySeller(sellerId).thenCompose(existing -> onMainThread(() -> {
+                requireTrade(seller);
                 if (!seller.isOnline() || seller.getInventory().getHeldItemSlot()!=slot || !snapshot.equals(seller.getInventory().getItemInMainHand())) throw new LocalizedException("messages.hold-item");
                 if (!isAllowedItem(snapshot)) throw new LocalizedException("messages.item-blocked");
                 if (existing.stream().filter(a -> a.status()==AuctionStatus.ACTIVE).count()>=configManager.maxActiveListings(seller)) throw new LocalizedException("messages.max-active-listings");
@@ -159,7 +161,8 @@ public final class AuctionServiceImpl implements AuctionService {
                 double fee=seller.hasPermission("auctionhousepro.bypass.fees") ? 0 : configManager.listingFee(seller);
                 if (!EconomyLedger.valid(fee)) throw new LocalizedException("messages.invalid-number");
                 return new PendingAuctionInsert(auction,seller.getName(),snapshot.getType().name(),fee,slot,snapshot);
-            })).thenCompose(pending -> withDebit(sellerId,pending.listingFee(),debit -> onMainThread(() -> {
+            })).thenCompose(pending -> withDebit(seller,pending.listingFee(),debit -> onMainThread(() -> {
+                requireTrade(seller);
                 if (!seller.isOnline() || seller.getInventory().getHeldItemSlot()!=slot || !snapshot.equals(seller.getInventory().getItemInMainHand())) throw new LocalizedException("messages.hold-item");
                 if (escrow.pending().stream().anyMatch(entry -> entry.seller().equals(sellerId) && "REVIEW".equals(entry.state()))) throw new LocalizedException("messages.transaction-pending");
                 UUID escrowId=escrow.prepare(sellerId,snapshot,debit);
@@ -198,10 +201,11 @@ public final class AuctionServiceImpl implements AuctionService {
                 requireActive(auction);
                 if (auction.sellerId().equals(playerId)) throw new LocalizedException("messages.cannot-bid-own");
                 if (amount<auction.minimumNextBid()) throw new LocalizedException("messages.bid-too-low",Map.of("amount",String.format(Locale.US,"%.2f",auction.minimumNextBid())));
+                requireTrade(bidder);
                 AuctionBidEvent event=new AuctionBidEvent(bidder,auction,amount); Bukkit.getPluginManager().callEvent(event);
                 if (event.isCancelled()) throw new LocalizedException("messages.action-cancelled");
                 return auction;
-            })).thenCompose(auction -> withDebit(playerId,amount,debit -> {
+            })).thenCompose(auction -> withDebit(bidder,amount,debit -> {
                 Instant expiry=auction.expiresAt();
                 if (Duration.between(Instant.now(),expiry).toSeconds()<=configManager.antiSnipeWindowSeconds()) expiry=expiry.plusSeconds(configManager.antiSnipeExtensionSeconds());
                 Auction updated=auction.withBid(playerId,amount,expiry).incrementBidCount().refreshFeaturedScore();
@@ -226,8 +230,9 @@ public final class AuctionServiceImpl implements AuctionService {
                 requireActive(auction);
                 if (!auction.hasBuyNow() || !EconomyLedger.valid(auction.buyNowPrice())) throw new LocalizedException("messages.buy-now-unavailable");
                 if (auction.sellerId().equals(playerId)) throw new LocalizedException("messages.cannot-buy-own");
+                requireTrade(buyer);
                 return auction;
-            })).thenCompose(auction -> withDebit(playerId,auction.buyNowPrice(),debit -> transition(auction,auction.soldTo(playerId,auction.buyNowPrice()),bidRefund(auction,"buy:"+debit),null,null,debit)))
+            })).thenCompose(auction -> withDebit(buyer,auction.buyNowPrice(),debit -> transition(auction,auction.soldTo(playerId,auction.buyNowPrice()),bidRefund(auction,"buy:"+debit),null,null,debit)))
                 .thenApply(updated -> { ledger.processQueued().exceptionally(failure -> null); processSale(updated); return updated; });
         }));
     }
@@ -362,9 +367,10 @@ public final class AuctionServiceImpl implements AuctionService {
             return freshAuction(auctionId).thenCompose(auction -> onMainThread(() -> {
                 requireActive(auction);
                 if (auction.sellerId().equals(id)) throw new LocalizedException("messages.cannot-buy-own");
+                requireTrade(buyer);
                 if (amount<auction.displayPrice()) throw new LocalizedException("messages.offer-too-low",Map.of("amount",String.format(Locale.US,"%.2f",auction.displayPrice())));
                 return auction;
-            })).thenCompose(auction -> withDebit(id,amount,debit -> marketRepository.createOfferWithReceipt(auctionId,auction.sellerId(),id,amount,debit)));
+            })).thenCompose(auction -> withDebit(buyer,amount,debit -> marketRepository.createOfferWithReceipt(auctionId,auction.sellerId(),id,amount,debit)));
         }));
     }
 
@@ -441,12 +447,16 @@ public final class AuctionServiceImpl implements AuctionService {
             UUID id=actor instanceof Player player ? player.getUniqueId() : null;
             boolean admin=actor.hasPermission("auctionhousepro.admin"), seller=offer.sellerId().equals(id), buyer=offer.buyerId().equals(id);
             if (!admin && !seller && !buyer || accept && !admin && !seller) throw new LocalizedException("messages.no-permission");
+            if (accept && actor instanceof Player player) requireTrade(player);
             if (offer.status()!=AuctionOfferStatus.PENDING) throw new LocalizedException("messages.offer-no-longer-pending");
             return buyer&&!seller&&!admin ? AuctionOfferStatus.CANCELLED : AuctionOfferStatus.REJECTED;
         }).thenCompose(rejection -> {
             if (!accept) return marketRepository.rejectOfferWithRefund(offer.id(),rejection).thenApply(changed -> { ledger.processQueued().exceptionally(failure -> null); return changed; });
-            return freshAuction(offer.auctionId()).thenCompose(auction -> {
+            return freshAuction(offer.auctionId()).thenCompose(auction -> onMainThread(() -> {
                 requireActive(auction);
+                if (actor instanceof Player player) requireTrade(player);
+                return auction;
+            })).thenCompose(auction -> {
                 return transition(auction,auction.soldTo(offer.buyerId(),offer.amount()),bidRefund(auction,"offer:"+offer.id()),offer.id(),null,null);
             }).thenApply(updated -> { ledger.processQueued().exceptionally(failure -> null); processSale(updated); return true; });
         });
@@ -649,10 +659,15 @@ public final class AuctionServiceImpl implements AuctionService {
         return auction.highestBidderId()==null || auction.currentBid()<=0 ? List.of()
             : List.of(new EconomyCredit("bid-refund:"+auction.id()+":"+suffix,auction.highestBidderId(),auction.currentBid()));
     }
-    private <T> CompletableFuture<T> withDebit(UUID player,double amount,java.util.function.Function<String,CompletableFuture<T>> work) {
-        return ledger.debit(player,amount).thenCompose(id -> {
+    private void requireTrade(Player player) {
+        if (!player.isOnline() || !plugin.getIntegrations().allows(player, player.getLocation(), Action.TRADE))
+            throw new LocalizedException("messages.integration-denied");
+    }
+
+    private <T> CompletableFuture<T> withDebit(Player player,double amount,java.util.function.Function<String,CompletableFuture<T>> work) {
+        return ledger.debit(player.getUniqueId(),amount, () -> requireTrade(player)).thenCompose(id -> {
             CompletableFuture<T> task;
-            try { task=work.apply(id); } catch (Throwable failure) { task=CompletableFuture.failedFuture(failure); }
+            try { task=onMainThread(() -> { requireTrade(player); return null; }).thenCompose(unused -> work.apply(id)); } catch (Throwable failure) { task=CompletableFuture.failedFuture(failure); }
             return task.handle((result,failure) -> {
                 if (failure==null) return CompletableFuture.completedFuture(result);
                 return ledger.refund(id).handle((unused,refundFailure) -> {

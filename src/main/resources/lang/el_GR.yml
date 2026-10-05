@@ -46,6 +46,7 @@ statuses:
   cancelled: Cancelled
   expired: Expired
 messages:
+  integration-denied: "<red>Αυτή η περιοχή ή το νησί δεν επιτρέπει αυτή την ενέργεια. Έλεγξε τα δικαιώματα ή πήγαινε σε επιτρεπόμενο μέρος.</red>"
   general-help: '<gray>Εντολές: /<command> menu | /<command> help | /<command> language [code] | /<command> reload</gray>'
   language-info: '<gray>Η γλώσσα σου: <language>. Διαθέσιμες: <languages>.</gray>'
   language-invalid: '<red>Άγνωστη γλώσσα. Διαθέσιμες: <languages>.</red>'

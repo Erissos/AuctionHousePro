@@ -78,6 +78,7 @@ public final class AuctionCommand implements CommandExecutor, TabCompleter {
                 return true;
             }
             configManager.reload();
+            com.auctionhousepro.AuctionHouseProPlugin.getInstance().getIntegrations().reload();
             localeManager.reload();
             ((com.auctionhousepro.service.impl.AuctionServiceImpl)auctionService).rescheduleTimers();
             sender.sendMessage(localeManager.message(locale, "messages.reload-complete", TagResolver.empty()));
@@ -371,6 +372,7 @@ public final class AuctionCommand implements CommandExecutor, TabCompleter {
         switch (args[1].toLowerCase(Locale.ROOT)) {
             case "reload" -> {
                 configManager.reload();
+                com.auctionhousepro.AuctionHouseProPlugin.getInstance().getIntegrations().reload();
                 localeManager.reload();
             ((com.auctionhousepro.service.impl.AuctionServiceImpl)auctionService).rescheduleTimers();
                 player.sendMessage(localeManager.message(player, "messages.reload-complete"));

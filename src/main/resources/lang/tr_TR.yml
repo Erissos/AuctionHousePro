@@ -45,6 +45,7 @@ statuses:
   cancelled: İptal Edildi
   expired: Süresi Doldu
 messages:
+  integration-denied: "<red>Bu bölge veya ada bu işleme izin vermiyor. Bölge izinlerini kontrol et ya da izin verilen bir yere geç.</red>"
   general-help: '<gray>Komutlar: /<command> menu | /<command> help | /<command> language [code] | /<command> reload</gray>'
   language-info: '<gray>Diliniz: <language>. Kullanılabilir diller: <languages>.</gray>'
   language-invalid: '<red>Geçersiz dil. Kullanılabilir diller: <languages>.</red>'

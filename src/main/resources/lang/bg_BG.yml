@@ -46,6 +46,7 @@ statuses:
   cancelled: Cancelled
   expired: Expired
 messages:
+  integration-denied: "<red>Тази зона или остров не позволява това действие. Провери разрешенията или отиди на разрешено място.</red>"
   general-help: '<gray>Команди: /<command> menu | /<command> help | /<command> language [code] | /<command> reload</gray>'
   language-info: '<gray>Твоят език: <language>. Налични: <languages>.</gray>'
   language-invalid: '<red>Непознат език. Налични: <languages>.</red>'
