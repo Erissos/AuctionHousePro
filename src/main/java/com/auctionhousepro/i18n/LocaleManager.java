@@ -35,6 +35,11 @@ public final class LocaleManager {
     private final Map<UUID, String> playerLocales;
     private final File playerLocaleFile;
     private YamlConfiguration playerLocaleConfig;
+    private java.util.function.BiConsumer<UUID, String> selectionChanged = (id, code) -> {};
+    public void onSelectionChanged(java.util.function.BiConsumer<UUID, String> listener) {
+        selectionChanged = java.util.Objects.requireNonNull(listener);
+    }
+
     public LocaleManager(JavaPlugin plugin, ConfigManager configManager) {
         this.plugin = plugin;
         this.configManager = configManager;
@@ -150,6 +155,7 @@ public final class LocaleManager {
             if (previous==null) playerLocales.remove(playerId); else playerLocales.put(playerId,previous);
             playerLocaleConfig.set(playerId.toString(),previous); throw failure;
         }
+        selectionChanged.accept(playerId, normalized);
     }
 
     public Collection<String> availableLocales() {

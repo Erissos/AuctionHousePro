@@ -19,6 +19,7 @@ public final class ConfigManager {
     private FileConfiguration config;
     private FileConfiguration menus;
     private FileConfiguration webhook;
+    private java.util.function.Function<java.util.UUID, Object> suiteBusinessProfile = player -> null;
 
     public ConfigManager(JavaPlugin plugin) {
         this.plugin = plugin;
@@ -29,6 +30,8 @@ public final class ConfigManager {
         // Validate every input before replacing the active configuration on reload.
         var nextConfig = com.auctionhousepro.util.StrictYaml.load(new File(plugin.getDataFolder(),"config.yml"));
         dev.desperis.integration.IntegrationService.validateConfig(nextConfig);
+        dev.desperis.suite.SuiteIntegrationService.validateConfig(nextConfig);
+        com.auctionhousepro.integration.SuiteHooks.validateConfig(nextConfig);
         com.auctionhousepro.util.StrictYaml.load(new File(plugin.getDataFolder(),"menus.yml"));
         com.auctionhousepro.util.StrictYaml.load(new File(plugin.getDataFolder(),"webhook.yml"));
         File[] languageFiles=new File(plugin.getDataFolder(),"lang").listFiles((directory,name) -> name.endsWith(".yml"));
@@ -93,7 +96,7 @@ public final class ConfigManager {
     }
 
     public double listingFee(OfflinePlayer player) {
-        return listingFee() * segmentMultiplier(player, "listing-fee-multiplier", 1.0D);
+        return listingFee() * segmentMultiplier(player, "listing-fee-multiplier", 1.0D) * (1 - suiteBusinessDiscount(player, "listing"));
     }
 
     public double taxRate() {
@@ -101,9 +104,18 @@ public final class ConfigManager {
     }
 
     public double taxRate(OfflinePlayer player) {
-        return rate(taxRate() * segmentMultiplier(player,"tax-rate-multiplier",1.0D),taxRate());
+        return rate(taxRate() * segmentMultiplier(player,"tax-rate-multiplier",1.0D),taxRate()) * (1 - suiteBusinessDiscount(player, "tax"));
     }
 
+    public void setSuiteBusinessProfileLookup(java.util.function.Function<java.util.UUID, Object> lookup) {
+        suiteBusinessProfile = java.util.Objects.requireNonNull(lookup);
+    }
+    private double suiteBusinessDiscount(OfflinePlayer player, String purpose) {
+        if (player == null || !org.bukkit.Bukkit.isPrimaryThread()
+                || !config.getBoolean("suite-integrations.features.auction-business-benefits", false)) return 0;
+        try { return com.auctionhousepro.integration.BusinessBenefitRules.discount(config, suiteBusinessProfile.apply(player.getUniqueId()), purpose); }
+        catch (RuntimeException | LinkageError unavailable) { return 0; }
+    }
 
     public double commissionRate() {
         return rate(config.getDouble("auction.commission-rate",0.05D),0.05D);

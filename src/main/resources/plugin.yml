@@ -4,7 +4,7 @@ main: com.auctionhousepro.AuctionHouseProPlugin
 api-version: '1.20.6'
 authors: [Erissos]
 description: Premium auction house for Paper 1.20.6 through 26.2
-softdepend: [Vault, PlaceholderAPI, Towny, GriefPrevention, WorldGuard, Lands, BentoBox, SuperiorSkyblock2]
+softdepend: [Vault, PlaceholderAPI, Towny, GriefPrevention, WorldGuard, Lands, BentoBox, SuperiorSkyblock2, PlayerBusiness]
 commands:
   auctionhouse:
     aliases: [ah, auc]

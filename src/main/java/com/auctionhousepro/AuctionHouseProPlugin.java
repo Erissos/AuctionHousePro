@@ -1,6 +1,7 @@
 package com.auctionhousepro;
 
 import dev.desperis.integration.IntegrationService;
+import dev.desperis.suite.SuiteIntegrationService;
 import com.auctionhousepro.api.AuctionHouseProApi;
 import com.auctionhousepro.command.AuctionCommand;
 import com.auctionhousepro.config.ConfigManager;
@@ -26,6 +27,7 @@ public final class AuctionHouseProPlugin extends JavaPlugin {
 
     private ConfigManager configManager;
     private IntegrationService integrations;
+    private SuiteIntegrationService suiteIntegrations;
     private LocaleManager localeManager;
     private DatabaseManager databaseManager;
     private AuctionRepository auctionRepository;
@@ -50,6 +52,8 @@ public final class AuctionHouseProPlugin extends JavaPlugin {
         this.configManager = new ConfigManager(this);
         this.integrations = new IntegrationService(this, configManager::config);
         this.integrations.reload();
+        this.suiteIntegrations = new SuiteIntegrationService(this, configManager::config);
+        this.suiteIntegrations.reload();
         this.localeManager = new LocaleManager(this, configManager);
         this.databaseManager = new DatabaseManager(this, configManager);
         this.databaseManager.initialize();
@@ -64,6 +68,19 @@ public final class AuctionHouseProPlugin extends JavaPlugin {
         this.telemetryService = new MarketTelemetryService();
         this.auctionService = new AuctionServiceImpl(this, configManager, auctionRepository, marketRepository, economyService, notificationService, auditLogService, discordWebhookService, telemetryService);
         this.guiManager = new GuiManager(this, configManager, localeManager, auctionService);
+        this.localeManager.onSelectionChanged(suiteIntegrations::publishLanguage);
+        this.suiteIntegrations.onLanguage((id, code) -> {
+            String resolved = localeManager.resolveLocale(code);
+            if (resolved == null) return false;
+            localeManager.setPlayerLocale(id, resolved);
+            var player = getServer().getPlayer(id);
+            if (player != null) {
+                var holder = player.getOpenInventory().getTopInventory().getHolder();
+                if (holder != null && holder.getClass().getClassLoader() == getClass().getClassLoader()) guiManager.refreshLanguage(player);
+            }
+            return true;
+        });
+        com.auctionhousepro.integration.SuiteHooks.install(this, suiteIntegrations);
 
         AuctionHouseProApi.setProvider(auctionService);
         registerCommands();
@@ -83,6 +100,7 @@ public final class AuctionHouseProPlugin extends JavaPlugin {
             auditLogService.shutdown();
         }
         if (integrations != null) integrations.close();
+        if (suiteIntegrations != null) suiteIntegrations.close();
         if (databaseManager != null) {
             databaseManager.close();
         }
@@ -126,6 +144,7 @@ public final class AuctionHouseProPlugin extends JavaPlugin {
     }
 
     public IntegrationService getIntegrations() { return integrations; }
+    public SuiteIntegrationService getSuiteIntegrations() { return suiteIntegrations; }
 
     public ConfigManager getConfigManager() {
         return configManager;

@@ -487,6 +487,17 @@ public final class AuctionServiceImpl implements AuctionService {
         if (!Bukkit.isPrimaryThread()) {
             onMainThread(() -> { processSale(auction); return null; }).exceptionally(failure -> { plugin.getLogger().warning("Sale notification failed: " + failure.getMessage()); return null; }); return;
         }
+        // This method runs only after the authoritative ACTIVE -> SOLD transition.
+        // The bridge deduplicates the stable auction receipt; cancelled pre-events
+        // never grant progress, and payouts remain the existing claim ledger's job.
+        if (plugin.getConfigManager().config().getBoolean("suite-integrations.features.auction-milestones", true)
+                && plugin.getSuiteIntegrations() != null) {
+            try {
+                Map<String,String> facts = Map.of("material", auction.item().getType().name(), "type", auction.type().name());
+                plugin.getSuiteIntegrations().milestone(auction.sellerId(), "auction_sale", "sale:" + auction.id(), 1, facts);
+                if (auction.highestBidderId() != null) plugin.getSuiteIntegrations().milestone(auction.highestBidderId(), "auction_purchase", "purchase:" + auction.id(), 1, facts);
+            } catch (RuntimeException | LinkageError unavailable) { /* Optional progress must not change a committed sale. */ }
+        }
         OfflinePlayer seller = Bukkit.getOfflinePlayer(auction.sellerId());
         telemetryService.markSale(0);
         double sellerCut = auction.currentBid() * Math.max(0.0D, 1.0D - configManager.taxRate(seller) - configManager.commissionRate(seller));

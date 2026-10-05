@@ -210,3 +210,59 @@ integrations:
   # Sınırlı sağlayıcı durum / hata tanılaması. Normal işletimde false yeterlidir;
   # veri tabanına veya claim dosyasına müdahale etmez.
   debug: false
+# Desperis ürünlerinin isteğe bağlı ortak özellikleri.
+# Her ürün tek başına çalışır; yabancı veritabanı, şirket kasası veya ödeme kaydı yazılmaz.
+suite-integrations:
+  # false yeni ortak bağlantıları kapatır. Mevcut bağlı savaşın güvenli bitişi/temizliği sürer.
+  enabled: true
+  language-sync:
+    # true: oyuncunun açıkça seçtiği dili, bu ayarı açmış diğer ürünlere UUID ile iletir.
+    # Desteklenmeyen dil o üründe değiştirilmez. 'auto' ve girişteki istemci dili yayınlanmaz.
+    # Her ürünün kendi dil dosyaları ve kişisel tercih kaydı korunur; varsayılan kapalıdır.
+    enabled: false
+  milestones:
+    # Yalnızca başarıyla tamamlanan canlı işlemler BetterAdvancements'a ilerleme bildirir.
+    # BA'da kaynak+olay koşullu CUSTOM hedef gerekir; örnek katalog ayrı ve varsayılan kapalıdır.
+    # Geçmiş oynatılmaz. Canlı gözlem ödeme işlemi değildir; sunucu çöküşünde teslim garantisi yoktur.
+    enabled: true
+  providers:
+    # Bağlantı iki üründe de açık olmalıdır. Eksik/eski/kapalı ürün temel işleyişi durdurmaz.
+    # Kimlikler küçük harfle yazılır. Kendi ürün satırı başka bir kopyaya bağlantı kurmaz.
+    stableman:
+      enabled: true
+    betteradvancements:
+      enabled: true
+    auctionhousepro:
+      enabled: true
+    playerbusiness:
+      enabled: true
+    dynamicbounty:
+      enabled: true
+    smartnpcworkers:
+      enabled: true
+    servereventsengine:
+      enabled: true
+    dynamicdungeongenerator:
+      enabled: true
+    adaptivebosses:
+      enabled: true
+  features:
+    # PB şirket seviyesine bağlı ilan ücreti ve satış vergisi indirimi.
+    # Varsayılan kapalı. PB yalnızca seviye/üyelik bilgisi verir; şirket kasası yazılmaz.
+    auction-business-benefits: false
+    # Şirket seviyesi başına ilan ücretinin indirilecek oranı; 0.02 = %2, aralık 0–1.
+    # Var olan VIP/permission çarpanı önce uygulanır; mevcut ücret bypass izni korunur.
+    auction-business-listing-discount-per-level: 0.02
+    # Şirket seviyesi başına satış vergisinin indirilecek oranı; 0–1.
+    # Şirket seviyesi satış anında sabitlenmez: satıcı geliri talep ederken tekrar okunur.
+    # Komisyon indirimi değildir; commission-rate mevcut davranışını korur.
+    auction-business-tax-discount-per-level: 0.02
+    # Her iki indirim için azami oran; 0.25 = %25, aralık 0–1.
+    auction-business-maximum-discount: 0.25
+    # İndirime uygun PB üyelik rolleri; [] = kimse indirim alamaz.
+    auction-business-eligible-roles: [owner, manager, employee]
+    # İndirime uygun PB işletme türleri; kalıcı tür kimlikleri çevrilmez.
+    auction-business-eligible-types: [restaurant, mining, arcade, market, cargo]
+    # Başarılı ACTIVE -> SOLD işleminden sonra satıcı/alıcı milestone yayınlar.
+    # Ön oluşturma olayı, iptal veya başarısız ödeme ilerleme vermez; geçmiş oynatılmaz.
+    auction-milestones: true
