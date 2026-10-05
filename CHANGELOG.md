@@ -1,6 +1,15 @@
 # Sürüm notları
 
-## 1.1.1-SNAPSHOT — yayımlanmamış düzeltmeler
+## 1.1.1-SNAPSHOT - sibling product links (2026-10-05; source snapshot)
+
+- Add optional protocol-1 Desperis sibling links, opt-in durable per-player language sync and source/event-specific live milestones.
+- Add configurable product-specific cooperation and conflict rules; preserve standalone ownership, money receipts, lowest Paper API and existing custom settings.
+- Add a documented feature/default matrix and compact three-version verification scope. No new release tag or GitHub Release; live achievement observations have no distributed delivery guarantee. Current verification: [compatibility](docs/COMPATIBILITY.md), [sanitized proof](docs/verification.json).
+
+
+## 1.1.1-SNAPSHOT - geliştirme kaynağı düzeltmeleri
+
+- Towny/GriefPrevention/WorldGuard/Lands/BentoBox/SuperiorSkyblock2 yerel koruma denetimleri, sağlayıcı/dünya/işlem ayarları ve hatalı yeniden yüklemede etkin ayarların korunması eklendi; config yorumları ve Desperis ürün başlıkları genişletildi.
 
 - MySQL sütun/indeks geçişleri bağlı veritabanıyla sınırlandırılır; başka veritabanındaki şema geçişi yükseltmeyi engellemez.
 - Ödeme sürerken süresi dolan ilanda teklif/satış/offer SQL aşamasında reddedilir; devam eden iade aynı işlem geleceğiyle beklenir.
@@ -30,4 +39,4 @@
 - Yeni eşya kayıtları DataVersion içeren `nbt:` biçiminde yazılır; eski satır sonlu Base64/Bukkit kayıtları okunur.
 - Vault bulunmadığında eklenti açılır; ekonomi sağlayıcısı gerektiren işlemler kapalı kalır.
 
-Altı gerçek Paper sürümünde üç eklentiyi birlikte kapsayan 43 kontrol/sürüm geçti. Ayrıntılar: [docs/COMPATIBILITY.md](docs/COMPATIBILITY.md).
+Altı gerçek Paper sürümünde üç eklentiyi birlikte kapsayan 43 kontrol/sürüm geçti. Ayrıntılar: [docs/COMPATIBILITY.md](docs/COMPATIBILITY-RELEASE-1.1.0.md).

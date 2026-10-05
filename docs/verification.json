@@ -1,0 +1,107 @@
+{
+  "schema": 1,
+  "date": "2026-10-05",
+  "project": "AuctionHousePro",
+  "version": "1.1.1-SNAPSHOT",
+  "artifact": "AuctionHousePro-1.1.1-SNAPSHOT.jar",
+  "sha256": "1bd7ecc2aa5cb4e5ab4808fa8c7f57ac0d1baa2d5f3609f7a7958ccfbc7c7702",
+  "api_version": "1.20.6",
+  "java_bytecode_major": 65,
+  "target_runtime_range": "Paper 1.20.6-26.2",
+  "publication_kind": "development source snapshot; no new tag or GitHub Release",
+  "unit": {
+    "configured": false,
+    "project_tests_passed": 0,
+    "suite_tests_passed": 426,
+    "suite_count_scope": "All configured unit suites across nine projects",
+    "report_sha256": {}
+  },
+  "paper_matrix": [
+    {
+      "minecraft": "1.20.6",
+      "paper_build": 151,
+      "paper_channel": "STABLE",
+      "paper_sha256": "4b011f5adb5f6c72007686a223174fce82f31aeb4b34faf4652abc840b47e640",
+      "java_major": 21,
+      "suite_check_groups_passed": 124,
+      "suite_check_groups_failed": 0,
+      "suite_count_scope": "All nine plugins together; not per-project independent gameplay scenarios",
+      "project_check_labels": [
+        "AuctionHousePro configurable integration policy/reload",
+        "AuctionHousePro separate-loader suite protocol/default peers/toggles/validated reload",
+        "AuctionHousePro startup/lowest API",
+        "AuctionHousePro standard Turkish/English item names",
+        "Auction business discounts opt-in/eligibility/cap/VIP/neutral missing link"
+      ],
+      "shared_language_check": "Suite UUID language sync opt-in/actual nine stores/unsupported language isolation",
+      "artifact_sha256": "1bd7ecc2aa5cb4e5ab4808fa8c7f57ac0d1baa2d5f3609f7a7958ccfbc7c7702",
+      "fixture_source_sha256": "f1423fcf0fda3c57b35206119373de2bb6e9dda5604a76ee2dc2a5e7cb39414d"
+    },
+    {
+      "minecraft": "1.21.11",
+      "paper_build": 132,
+      "paper_channel": "STABLE",
+      "paper_sha256": "5ffef465eeeb5f2a3c23a24419d97c51afd7dbb4923ff42df9a3f58bba1ccfba",
+      "java_major": 21,
+      "suite_check_groups_passed": 124,
+      "suite_check_groups_failed": 0,
+      "suite_count_scope": "All nine plugins together; not per-project independent gameplay scenarios",
+      "project_check_labels": [
+        "AuctionHousePro configurable integration policy/reload",
+        "AuctionHousePro separate-loader suite protocol/default peers/toggles/validated reload",
+        "AuctionHousePro startup/lowest API",
+        "AuctionHousePro standard Turkish/English item names",
+        "Auction business discounts opt-in/eligibility/cap/VIP/neutral missing link"
+      ],
+      "shared_language_check": "Suite UUID language sync opt-in/actual nine stores/unsupported language isolation",
+      "artifact_sha256": "1bd7ecc2aa5cb4e5ab4808fa8c7f57ac0d1baa2d5f3609f7a7958ccfbc7c7702",
+      "fixture_source_sha256": "f1423fcf0fda3c57b35206119373de2bb6e9dda5604a76ee2dc2a5e7cb39414d"
+    },
+    {
+      "minecraft": "26.2",
+      "paper_build": 130,
+      "paper_channel": "STABLE",
+      "paper_sha256": "715cd6633db27b2c05ce6efd2d477330ebae8a4f668cf0459fcaf434c4720fba",
+      "java_major": 25,
+      "suite_check_groups_passed": 124,
+      "suite_check_groups_failed": 0,
+      "suite_count_scope": "All nine plugins together; not per-project independent gameplay scenarios",
+      "project_check_labels": [
+        "AuctionHousePro configurable integration policy/reload",
+        "AuctionHousePro separate-loader suite protocol/default peers/toggles/validated reload",
+        "AuctionHousePro startup/lowest API",
+        "AuctionHousePro standard Turkish/English item names",
+        "Auction business discounts opt-in/eligibility/cap/VIP/neutral missing link"
+      ],
+      "shared_language_check": "Suite UUID language sync opt-in/actual nine stores/unsupported language isolation",
+      "artifact_sha256": "1bd7ecc2aa5cb4e5ab4808fa8c7f57ac0d1baa2d5f3609f7a7958ccfbc7c7702",
+      "fixture_source_sha256": "f1423fcf0fda3c57b35206119373de2bb6e9dda5604a76ee2dc2a5e7cb39414d"
+    }
+  ],
+  "paper_suite_total_groups_passed": 372,
+  "protocol_version": 1,
+  "suite_service_source_sha256": "2994e840529c0807a2122ec6a4ea55b6a2f8254b53d7a1dd3a537585109620f4",
+  "territory_service_source_sha256": "981c1646599dc7e7b3e8b23363359f23a3768f1886ca5227bf5c49788abef37c",
+  "scope": "Compact nine-plugin protocol/configuration/language/business benefits; existing domain/menu regressions. Proxy actors, not connected clients. Linked-boss receipt and suite observer unit contracts; no live connected dungeon-party or crash certification.",
+  "limits": {
+    "connected_minecraft_clients_executed": false,
+    "rendered_gui_or_owner_resource_pack_certified": false,
+    "actual_territory_provider_jars_certified": false,
+    "licensed_mythicmobs_oraxen_itemsadder_certified": false,
+    "current_mysql_or_production_economy_provider_matrix_executed": false,
+    "full_linked_dungeon_party_gameplay_certified": false,
+    "os_hard_crash_recovery_certified": false,
+    "all_intermediate_minecraft_versions_executed": false,
+    "plain_spigot_folia_forge_fabric_executed": false,
+    "milestones": "Best-effort live observations; no historical/offline backfill or cross-database exactly-once outbox"
+  },
+  "provenance": {
+    "coordinator_summary_sha256": "e2d12085813be74b3084b7410b0d87d0df5f997935128b39f4db434509a7c8bf",
+    "coordinator_runtime_results_sha256": "e282020b9b6181a0ea3b9ba1547cb59ab3ebe859bfeaccc9456127ef2b59e690"
+  },
+  "privacy": "Allowlisted result metadata only; no machine paths, account names, player UUIDs, live server configuration, logs, worlds or databases",
+  "catalogs": {
+    "bundled_languages": 13,
+    "suite_sync_preserves_unsupported_preference": true
+  }
+}

@@ -1,15 +1,22 @@
 # AuctionHousePro
 
+## Desperis suite integrations (source snapshot)
+
+Optional sibling-plugin features now include per-player language synchronization, explicit CUSTOM advancement/challenge milestones, company-based auction benefits and worker capacity, worker-cargo work-order browsing, and DDG-owned AdaptiveBosses encounters. Dungeon, bounty, pet, NPC and server-event rules prevent overlapping progression/effects. Each product retains its own payment receipts and works independently.
+
+Configure `suite-integrations` separately from territorial `integrations`. Language synchronization, company economic/cap benefits and linked dungeon bosses are **disabled by default**; opt in deliberately. Live milestones have no historical/offline backfill. See [suite matrix and settings](docs/SUITE-INTEGRATIONS.md) and [this product's rules](docs/SUITE-LINKS.md). Verification is limited to Paper **1.20.6, 1.21.11 and 26.2** and the compact scope recorded by the workspace coordinator; connected dungeon parties and crash-level delivery guarantees are not certified. This development source snapshot has no new tag or GitHub Release. See [current compatibility and exact verification scope](docs/COMPATIBILITY.md) and [sanitized proof](docs/verification.json).
+
+
 AuctionHousePro, Paper 1.20.6–26.2 sunucuları için geliştirilmiş modern bir açık artırma eklentisidir. Oyuncular eşya listeleyebilir, teklif verebilir, hemen satın al kullanabilir, süresi dolan veya satılan açık artırmaları teslim alabilir ve kendi eklenti dilini seçebilir.
 
 ## Geliştirme sürümü: 1.1.1-SNAPSHOT
 
-3 Ekim 2026 incelemesindeki dil, kayıt ve işlem güvenliği sorunlarının düzeltmeleri bu kaynakta bulunur. GitHub'daki 1.1.0 yayımlanmış sürümünden sonra gelen, henüz yayımlanmamış geliştirme buildidir; test sunucusunda doğrulanır. Paper 1.20.6 API ve Java 21 derleme hedefi korunur.
+Bu geliştirme kaynağı `1.1.1-SNAPSHOT` sürümündedir; 1.1.0 etiketli yayından sonraki dil, kayıt, işlem güvenliği ve Desperis entegrasyonlarını içerir. Bu kaynak güncellemesi yeni sürüm etiketi veya GitHub Release oluşturmaz. Paper 1.20.6 API ve Java 21 bytecode hedefi korunur.
 
 Oyuncuya özel mesaj/düğme çevirilerine ek olarak `lang/<bölge>.yml` içinde `gui.titles.browser/admin/claims/listings` pencere başlıkları bulunur. Dil değişimi açık menüyü yeniden oluşturur. Yerleşim ve malzemeler `menus.yml` içinde kalır; bekleyen eski sorgu yeni/kapatılmış bir ekranı açamaz. Kurulu dil dosyaları korunur, eksik anahtarlar JAR içindeki varsayılan paketten tamamlanır.
 
 
-MySQL 8.4.7 şema/işlem regresyonları ve bağlı ağ istemcisiyle oyuncuya özel dil/menü kontrolleri eklenmiştir. Doğrulama kapsamı [uyumluluk belgesindedir](docs/COMPATIBILITY.md).
+Eski MySQL ve ağ istemcisi sonuçları yalnızca kendi tarihsel JAR kimliklerine aittir. Bu snapshot için güncel üç sürümlük kapsam [uyumluluk belgesinde](docs/COMPATIBILITY.md), eski yayın kanıtı [tarihsel kayıtta](docs/COMPATIBILITY-RELEASE-1.1.0.md) bulunur.
 
 [Düzeltme notları](CHANGELOG.md) · [Kurtarma ve teslimat kuralları](docs/RECOVERY.md).
 
@@ -19,7 +26,7 @@ MySQL 8.4.7 şema/işlem regresyonları ve bağlı ağ istemcisiyle oyuncuya öz
 - Desteklenen sunucular: **Paper 1.20.6–26.2**.
 - Sunucu Java sürümü: **1.20.6–1.21.11 için Java 21**, **26.1–26.2 için Java 25**.
 - Paketle gelen dil sayısı: **13**. Tercih oyuncuya özeldir ve kalıcıdır.
-- [JAR indir](https://github.com/Erissos/AuctionHousePro/releases/tag/1.1.0) · [Sürüm notları](CHANGELOG.md) · [Doğrulanan sürümler ve test kapsamı](docs/COMPATIBILITY.md).
+- [JAR indir](https://github.com/Erissos/AuctionHousePro/releases/tag/1.1.0) · [Sürüm notları](CHANGELOG.md) · [Doğrulanan sürümler ve test kapsamı](docs/COMPATIBILITY-RELEASE-1.1.0.md).
 
 ### Ortak komut düzeni
 
@@ -105,7 +112,7 @@ Projeyi kaynak koddan derlemek için:
 mvn clean package
 ```
 
-Kurulum JAR'ı `target/AuctionHousePro-1.1.0.jar` dosyasıdır. `original-` ile başlayan JAR sunucuya kurulmaz. Derleme çıktıları kaynak depoda izlenmez; dağıtım dosyaları GitHub Releases üzerinden yayınlanır.
+Kurulum JAR'ı `target/AuctionHousePro-1.1.1-SNAPSHOT.jar` dosyasıdır. `original-` ile başlayan JAR sunucuya kurulmaz. Derleme çıktıları kaynak depoda izlenmez; dağıtım dosyaları GitHub Releases üzerinden yayınlanır.
 
 Bu proje Maven kullanır ve varsayılan olarak Java 21 release hedefi ile derlenir.
 
@@ -388,3 +395,5 @@ src/main/java/com/auctionhousepro/
 ## Lisans ve Katkı
 
 Projeye katkı vermeden önce kodlama standartlarını, Paper API uyumluluğunu ve mevcut yapılandırma anahtarlarını korumaya dikkat edin. Özellikle locale dosyalarında yeni anahtar ekleniyorsa tüm dillerin fallback davranışı göz önünde bulundurulmalıdır.
+
+Towny, GriefPrevention, WorldGuard, Lands, BentoBox ve SuperiorSkyblock2 için isteğe bağlı yerel izin entegrasyonları bulunur. Sağlayıcılar, işlem denetimleri, dünya filtreleri ve zorunlu bağımlılıklar yorumlu `config.yml` üzerinden ayarlanır. [Entegrasyon davranışı ve sınırları](docs/INTEGRATIONS.md) · [Yapılandırma](docs/CONFIGURATION.md). Diğer eklentiler otomatik kurulmaz.
