@@ -168,7 +168,7 @@ public final class AuctionCommand implements CommandExecutor, TabCompleter {
         ItemStack itemStack = player.getInventory().getItemInMainHand();
         auctionService.createAuction(player, itemStack, duration, startPrice, buyNow, increment)
             .thenAccept(auction -> runSync(() -> player.sendMessage(localeManager.message(player, "messages.auction-created",
-                Placeholder.parsed("item", auction.item().getType().name()),
+                Placeholder.unparsed("item", localeManager.itemName(player, auction.item())),
                 Placeholder.parsed("price", String.format("%.2f", auction.displayPrice()))))))
                 .exceptionally(throwable -> {
                 runSync(() -> player.sendMessage(localeManager.exception(player, throwable)));
@@ -200,7 +200,7 @@ public final class AuctionCommand implements CommandExecutor, TabCompleter {
         long auctionId = parseId(args[1]);
         auctionService.buyNow(player, auctionId)
             .thenAccept(auction -> runSync(() -> player.sendMessage(localeManager.message(player, "messages.buy-now-success",
-                Placeholder.parsed("item", auction.item().getType().name()),
+                Placeholder.unparsed("item", localeManager.itemName(player, auction.item())),
                 Placeholder.parsed("amount", String.format("%.2f", auction.currentBid()))))))
                 .exceptionally(throwable -> {
                 runSync(() -> player.sendMessage(localeManager.exception(player, throwable)));
@@ -475,7 +475,7 @@ public final class AuctionCommand implements CommandExecutor, TabCompleter {
     }
 
     private void sendAuctionDetail(Player player, Auction auction, List<AuctionBidRecord> history) {
-        player.sendMessage(localeManager.message(player, "messages.detail-header", Placeholder.parsed("id", String.valueOf(auction.id())), Placeholder.parsed("item", auction.item().getType().name())));
+        player.sendMessage(localeManager.message(player, "messages.detail-header", Placeholder.parsed("id", String.valueOf(auction.id())), Placeholder.unparsed("item", localeManager.itemName(player, auction.item()))));
         player.sendMessage(localeManager.message(player, "messages.detail-line", Placeholder.parsed("label", localized(player, "labels.seller")), Placeholder.parsed("value", nameOf(auction.sellerId()))));
         player.sendMessage(localeManager.message(player, "messages.detail-line", Placeholder.parsed("label", localized(player, "labels.price")), Placeholder.parsed("value", String.format(Locale.US, "%.2f", auction.displayPrice()))));
         player.sendMessage(localeManager.message(player, "messages.detail-line", Placeholder.parsed("label", localized(player, "labels.buy-now")), Placeholder.parsed("value", auction.hasBuyNow() ? String.format(Locale.US, "%.2f", auction.buyNowPrice()) : localized(player, "values.not-available"))));
@@ -498,7 +498,7 @@ public final class AuctionCommand implements CommandExecutor, TabCompleter {
             return;
         }
         player.sendMessage(localeManager.message(player, "messages.profile-sales-header"));
-        recentSales.forEach(auction -> player.sendMessage(localeManager.message(player, "messages.profile-sales-line", Placeholder.parsed("id", String.valueOf(auction.id())), Placeholder.parsed("item", auction.item().getType().name()), Placeholder.parsed("amount", String.format(Locale.US, "%.2f", auction.currentBid())))));
+        recentSales.forEach(auction -> player.sendMessage(localeManager.message(player, "messages.profile-sales-line", Placeholder.parsed("id", String.valueOf(auction.id())), Placeholder.unparsed("item", localeManager.itemName(player, auction.item())), Placeholder.parsed("amount", String.format(Locale.US, "%.2f", auction.currentBid())))));
     }
 
     private void sendBidHistory(Player player, long auctionId, List<AuctionBidRecord> history) {
@@ -532,7 +532,7 @@ public final class AuctionCommand implements CommandExecutor, TabCompleter {
         }
         entries.forEach(entry -> player.sendMessage(localeManager.message(player, "messages.delivery-line",
                 Placeholder.parsed("id", String.valueOf(entry.id())),
-                Placeholder.parsed("item", entry.item().getType().name()),
+                Placeholder.unparsed("item", localeManager.itemName(player, entry.item())),
                 Placeholder.parsed("reason", entry.reason()),
                 Placeholder.parsed("time", TIMESTAMP_FORMAT.format(entry.createdAt())))));
     }

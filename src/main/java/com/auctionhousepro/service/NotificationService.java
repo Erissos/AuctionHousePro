@@ -5,6 +5,7 @@ import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
+import org.bukkit.inventory.ItemStack;
 
 import java.util.Map;
 import java.util.UUID;
@@ -35,13 +36,36 @@ public final class NotificationService {
         }
 
         player.sendMessage(localeManager.message(player, path, placeholders.entrySet().stream()
-                .map(entry -> Placeholder.parsed(entry.getKey(), entry.getValue()))
+                .map(entry -> entry.getKey().equals("item") ? Placeholder.unparsed(entry.getKey(), entry.getValue()) : Placeholder.parsed(entry.getKey(), entry.getValue()))
                 .toArray(net.kyori.adventure.text.minimessage.tag.resolver.TagResolver[]::new)));
     }
 
     public void sendPendingNotices(Player player) {
         Notice notice = pendingClaimNotice.remove(player.getUniqueId());
         if (notice != null) notify(player.getUniqueId(),notice.path(),notice.values());
+    }
+
+    /** Native standard names follow each recipient's selected plugin language; custom item names stay literal. */
+    public void notifyItem(UUID playerId, String path, ItemStack item, Map<String, String> placeholders) {
+        if (!Bukkit.isPrimaryThread()) {
+            var plugin = com.auctionhousepro.AuctionHouseProPlugin.getInstance();
+            ItemStack snapshot = item.clone(); Map<String, String> values = Map.copyOf(placeholders);
+            if (plugin.isEnabled()) Bukkit.getScheduler().runTask(plugin, () -> notifyItem(playerId, path, snapshot, values));
+            return;
+        }
+        var values = new java.util.HashMap<>(placeholders);
+        values.put("item", localeManager.itemName(playerId, item));
+        notify(playerId, path, values);
+    }
+
+    public void broadcastItem(String path, ItemStack item, Map<String, String> placeholders) {
+        if (!Bukkit.isPrimaryThread()) {
+            var plugin = com.auctionhousepro.AuctionHouseProPlugin.getInstance();
+            ItemStack snapshot = item.clone(); Map<String, String> values = Map.copyOf(placeholders);
+            if (plugin.isEnabled()) Bukkit.getScheduler().runTask(plugin, () -> broadcastItem(path, snapshot, values));
+            return;
+        }
+        for (Player player : Bukkit.getOnlinePlayers()) notifyItem(player.getUniqueId(), path, item, placeholders);
     }
 
     public void broadcast(String path, Map<String, String> placeholders) {

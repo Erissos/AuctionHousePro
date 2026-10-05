@@ -12,7 +12,7 @@ labels:
   pending-offers: Bekleyen teklif
   sold-listings: Satılan ilan
   watch-records: İzleme kaydı
-  total-bids: Toplam teklif
+  total-bids: Toplam bid
   delivery-box: Teslim kutusu
 values:
   none: '-'
@@ -79,7 +79,7 @@ messages:
   max-active-listings: <!italic><#ff6b6b>Maksimum aktif ilan sınırına ulaştın.
   action-cancelled: <!italic><#ff6b6b>Bu işlem başka bir eklenti tarafından iptal edildi.
   generic-error: <!italic><#ff6b6b>İstek işlenirken bir hata oluştu.
-  usage-sell: '<!italic><#ff6b6b>Kullanım: /ah sell <fiyat> [hemenAl] [30m|2h|1d] [artış]'
+  usage-sell: '<!italic><#ff6b6b>Kullanım: /ah sell <fiyat> [hemenAl] [30m|2h|1d] [artis]'
   usage-bid: '<!italic><#ff6b6b>Kullanım: /ah bid <id> <miktar>'
   usage-buy: '<!italic><#ff6b6b>Kullanım: /ah buy <id>'
   usage-watch: '<!italic><#ff6b6b>Kullanım: /ah watch <id> [hedefFiyat]'
@@ -127,13 +127,13 @@ messages:
   offers-incoming-header: <!italic><gradient:#62d2ff:#5fffb3><bold>Gelen Teklifler</bold></gradient>
   offers-outgoing-header: <!italic><gradient:#62d2ff:#5fffb3><bold>Giden Teklifler</bold></gradient>
   offers-empty: <!italic><#ffd166>Gösterilecek teklif yok.
-  offers-line: '<!italic><#9fb3c8>#<id> | İlan #<auction> | <player> | <#ffd166><amount></#ffd166> | <status>'
+  offers-line: '<!italic><#9fb3c8>#<id> | Auction #<auction> | <player> | <#ffd166><amount></#ffd166> | <status>'
   delivery-header: <!italic><gradient:#64f38c:#38d9ff><bold>Teslim Kutusu</bold></gradient>
   delivery-line: <!italic><#9fb3c8>#<id> <item> | <reason> | <#8ea2b5><time></#8ea2b5>
   admin-stats-header: <!italic><gradient:#ff9966:#ff5e62><bold>Pazar İstatistikleri</bold></gradient>
   admin-stats-line: '<!italic><#9fb3c8><label>: <#ffffff><value></#ffffff>'
-  admin-audit-header: <!italic><gradient:#ff9966:#ff5e62><bold>Denetim Kayıtları • <query></bold></gradient>
-  admin-audit-empty: <!italic><#ffd166>Eşleşen denetim kaydı yok.
+  admin-audit-header: <!italic><gradient:#ff9966:#ff5e62><bold>Audit Kayıtları • <query></bold></gradient>
+  admin-audit-empty: <!italic><#ffd166>Eşleşen audit kaydı yok.
   admin-audit-line: <!italic><#8ea2b5><line></#8ea2b5>
   admin-expired: <!italic><#5fffb3>#<id> numaralı ilan zorla sonuçlandırıldı.
   admin-returned: <!italic><#5fffb3>#<id> numaralı ilan satıcıya iade edildi.
@@ -143,7 +143,7 @@ messages:
   help:
   - <!italic><gradient:#62d2ff:#5fffb3><bold>AuctionHousePro</bold></gradient>
   - <!italic><#d8e6f0>/ah <#ffffff>ana menüyü açar</#ffffff>
-  - <!italic><#d8e6f0>/ah sell <fiyat> [hemenAl] [30m|2h|1d] [artış]</#d8e6f0>
+  - <!italic><#d8e6f0>/ah sell <fiyat> [hemenAl] [30m|2h|1d] [artis]</#d8e6f0>
   - <!italic><#d8e6f0>/ah bid <id> <miktar></#d8e6f0>
   - <!italic><#d8e6f0>/ah buy <id></#d8e6f0>
   - <!italic><#d8e6f0>/ah claim [id]</#d8e6f0>
@@ -160,34 +160,32 @@ messages:
   usage-ledger: <yellow>/ah admin ledger [id applied|retry]
 gui:
   browse-lore:
-  - '<!italic><gray>Satıcı: <white><seller></white>'
-  - '<!italic><gray>Güncel Fiyat: <white><current_bid></white>'
-  - '<!italic><gray>Hemen Al: <white><buy_now></white>'
-  - '<!italic><gray>Kalan Süre: <white><time_left></white>'
-  - '<!italic><gray>İzleyenler: <white><watchers></white> <dark_gray>•</dark_gray> Teklifler: <white><bids></white>'
-  - '<!italic><gray>İlan Kimliği: <white>#<id></white>'
+  - '<!italic><#9fb3c8>Satıcı: <#ffffff><seller></#ffffff>'
+  - '<!italic><#9fb3c8>Güncel: <#ffd166><current_bid></#ffd166>'
+  - '<!italic><#9fb3c8>Hemen Al: <#ffd166><buy_now></#ffd166>'
+  - '<!italic><#9fb3c8>Bitiş: <#62d2ff><time_left></#62d2ff>'
+  - '<!italic><#9fb3c8>İzleme: <#ffffff><watchers></#ffffff> | Teklif: <#ffffff><bids></#ffffff>'
+  - '<!italic><#9fb3c8>ID: <#8ea2b5>#<id></#8ea2b5>'
   - ''
-  - <!italic><yellow>Sol tık <gray>teklif ver <dark_gray>•</dark_gray> <yellow>Sağ tık <gray>hemen al
-  - '<!italic><gray>Shift + sağ tık: ilanı izle'
-  - '<!italic><gray>Orta tık: ilan detayları'
-  - '<!italic><gray>Shift + sol tık: satıcı profili'
+  - <!italic><#5fffb3>Sol tık teklif, sağ tık hemen al
+  - <!italic><#62d2ff>Shift+sağ izlemeye al, orta tık detay, Shift+sol satıcı profili
   expiring-lore:
   - <!italic><#ff6b6b><bold>AZ KALDI</bold></#ff6b6b>
   - <!italic><#9fb3c8>Bu ilanın süresi dolmak üzere.
   featured-lore:
-  - <!italic><#ffd166><bold>ÖNE ÇIKAN İLAN</bold></#ffd166>
+  - <!italic><#ffd166><bold>ONE CIKAN ILAN</bold></#ffd166>
   admin-lore:
   - ''
-  - '<!italic><#ff9966>Yönetici: sol tık bitir, sağ tık iade et'
+  - '<!italic><#ff9966>Admin: sol tık bitir, sağ tık iade et'
   button-previous: <!italic><#62d2ff>Önceki Sayfa
   button-next: <!italic><#62d2ff>Sonraki Sayfa
   button-refresh: <!italic><#5fffb3>Yenile
   button-claims: <!italic><#ffd166>Teslim Merkezi
   button-player-listings: <!italic><#ffd166>İlanların
   button-sort: '<!italic><#62d2ff>Sıralama: <#ffffff><mode></#ffffff>'
-  button-watchlist: <!italic><#62d2ff>İzleme Listem
+  button-watchlist: <!italic><#62d2ff>Izleme Listem
   button-category: '<!italic><#62d2ff>Kategori: <#ffffff><category></#ffffff>'
-  button-featured: '<!italic><#62d2ff>Öne Çıkanlar: <#ffffff><state></#ffffff>'
+  button-featured: '<!italic><#62d2ff>One Cikanlar: <#ffffff><state></#ffffff>'
   button-buy-now-filter: '<!italic><#62d2ff>Hemen Al: <#ffffff><state></#ffffff>'
   button-search: <!italic><#62d2ff>Ara
   titles:

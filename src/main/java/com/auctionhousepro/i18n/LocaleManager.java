@@ -11,6 +11,7 @@ import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
+import org.bukkit.inventory.ItemStack;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import java.io.File;
@@ -34,7 +35,6 @@ public final class LocaleManager {
     private final Map<UUID, String> playerLocales;
     private final File playerLocaleFile;
     private YamlConfiguration playerLocaleConfig;
-
     public LocaleManager(JavaPlugin plugin, ConfigManager configManager) {
         this.plugin = plugin;
         this.configManager = configManager;
@@ -131,6 +131,15 @@ public final class LocaleManager {
         return fallback == null ? normalize(configManager.fallbackLocale()) : fallback;
     }
 
+    public String itemName(Player viewer, ItemStack item) { return itemName(viewer.getUniqueId(), item); }
+
+    public String itemName(UUID viewerId, ItemStack item) {
+        var meta = item.getItemMeta();
+        if (meta != null && meta.hasDisplayName()) return PlainTextComponentSerializer.plainText().serialize(meta.displayName());
+        if (meta != null && meta.hasItemName()) return PlainTextComponentSerializer.plainText().serialize(meta.itemName());
+        return dev.erissos.localization.VanillaNames.item(item.getType(), playerLocale(viewerId));
+    }
+
     public void setPlayerLocale(UUID playerId, String locale) {
         String normalized = resolveLocale(locale);
         if (normalized == null) throw new IllegalArgumentException("Unknown language: " + locale);
@@ -179,7 +188,9 @@ public final class LocaleManager {
             var resource = plugin.getResource("lang/" + file.getName());
             if (resource != null) {
                 try (var reader = new InputStreamReader(resource, StandardCharsets.UTF_8)) {
-                    language.setDefaults(YamlConfiguration.loadConfiguration(reader));
+                    YamlConfiguration defaults = YamlConfiguration.loadConfiguration(reader);
+                    language.setDefaults(defaults);
+                    if (normalize(locale).equals("tr_tr")) upgradeKnownTurkishDefaults(language, defaults);
                 } catch (IOException exception) {
                     throw new IllegalStateException("Cannot load language defaults", exception);
                 }
@@ -207,6 +218,19 @@ public final class LocaleManager {
             try { playerLocales.put(UUID.fromString(key), normalize(playerLocaleConfig.getString(key, configManager.defaultLocale()))); }
             catch (IllegalArgumentException invalid) { plugin.getLogger().warning("Ignoring invalid player locale key: "+key); }
         }
+    }
+
+    private void upgradeKnownTurkishDefaults(YamlConfiguration loaded, YamlConfiguration defaults) {
+        var resource = plugin.getResource("lang-legacy/tr-polish.yml");
+        if (resource == null) return;
+        try (var reader = new InputStreamReader(resource, StandardCharsets.UTF_8)) {
+            var old = YamlConfiguration.loadConfiguration(reader);
+            for (String path : old.getKeys(true)) if (!old.isConfigurationSection(path)) {
+                Object value = old.get(path);
+                if ((value instanceof String || value instanceof List<?>) && defaults.contains(path)
+                        && java.util.Objects.equals(value, loaded.get(path))) loaded.set(path, defaults.get(path));
+            }
+        } catch (IOException failure) { throw new IllegalStateException("Cannot load known Turkish defaults", failure); }
     }
 
     private void savePlayerLocales() {

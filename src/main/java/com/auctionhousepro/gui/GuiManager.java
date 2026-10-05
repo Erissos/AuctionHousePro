@@ -292,7 +292,7 @@ public final class GuiManager implements Listener {
                 if (payload == null) {
                     return;
                 }
-                player.sendMessage(localeManager.message(player, "messages.gui-detail-header", Placeholder.parsed("id", String.valueOf(payload.auction().id())), Placeholder.parsed("item", payload.auction().item().getType().name())));
+                player.sendMessage(localeManager.message(player, "messages.gui-detail-header", Placeholder.parsed("id", String.valueOf(payload.auction().id())), Placeholder.unparsed("item", localeManager.itemName(player, payload.auction().item()))));
                 payload.history().stream().limit(3).forEach(entry -> player.sendMessage(localeManager.message(player, "messages.gui-detail-line", Placeholder.parsed("bidder", nameOf(entry.bidderId())), Placeholder.parsed("amount", String.format(java.util.Locale.US, "%.2f", entry.amount())))));
             }).exceptionally(throwable -> {
                 player.sendMessage(localeManager.exception(player, throwable));
@@ -373,6 +373,11 @@ public final class GuiManager implements Listener {
         ItemMeta meta = itemStack.getItemMeta();
         if (meta == null) {
             return itemStack;
+        }
+
+        // This inventory contains display clones: keep custom identity and localize only standard names.
+        if (!meta.hasDisplayName() && !meta.hasItemName()) {
+            meta.displayName(Component.text(localeManager.itemName(viewer, itemStack)).decoration(TextDecoration.ITALIC, false));
         }
 
         List<Component> lore = new ArrayList<>(localeManager.messageList(viewer, "gui.browse-lore",

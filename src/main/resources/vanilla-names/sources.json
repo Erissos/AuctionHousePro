@@ -1,0 +1,112 @@
+{
+  "minecraft": "26.2",
+  "sources": [
+    {
+      "language": "tr",
+      "locale": "tr_tr",
+      "url": "https://resources.download.minecraft.net/da/da7928b0b48dc2356978d6854dac2d8c95c734e9",
+      "sha1": "da7928b0b48dc2356978d6854dac2d8c95c734e9"
+    },
+    {
+      "language": "de",
+      "locale": "de_de",
+      "url": "https://resources.download.minecraft.net/ea/eaec85106ec0ef3fcef3e6f10a3d89d797823255",
+      "sha1": "eaec85106ec0ef3fcef3e6f10a3d89d797823255"
+    },
+    {
+      "language": "es",
+      "locale": "es_es",
+      "url": "https://resources.download.minecraft.net/60/60a69e25ede2d9fde21a14fb75510a0cd75a5638",
+      "sha1": "60a69e25ede2d9fde21a14fb75510a0cd75a5638"
+    },
+    {
+      "language": "fr",
+      "locale": "fr_fr",
+      "url": "https://resources.download.minecraft.net/01/011e5248d059a0f482b57b5b04562d787fede6e1",
+      "sha1": "011e5248d059a0f482b57b5b04562d787fede6e1"
+    },
+    {
+      "language": "it",
+      "locale": "it_it",
+      "url": "https://resources.download.minecraft.net/ae/aec7c47a72523abf22d1272a256d0632351877d4",
+      "sha1": "aec7c47a72523abf22d1272a256d0632351877d4"
+    },
+    {
+      "language": "pt",
+      "locale": "pt_br",
+      "url": "https://resources.download.minecraft.net/b7/b7f4575cf6400e81da0a408cd83430e10588de93",
+      "sha1": "b7f4575cf6400e81da0a408cd83430e10588de93"
+    },
+    {
+      "language": "ru",
+      "locale": "ru_ru",
+      "url": "https://resources.download.minecraft.net/b3/b35a36bc3c47d47e2017b2d77c55bd70721ed2ed",
+      "sha1": "b35a36bc3c47d47e2017b2d77c55bd70721ed2ed"
+    },
+    {
+      "language": "zh",
+      "locale": "zh_cn",
+      "url": "https://resources.download.minecraft.net/f8/f87510f4509890eaf176e0de1430f6bb326a6800",
+      "sha1": "f87510f4509890eaf176e0de1430f6bb326a6800"
+    },
+    {
+      "language": "ja",
+      "locale": "ja_jp",
+      "url": "https://resources.download.minecraft.net/10/10e2c3156bea5c00200d0b1761cb58b3e27ec7bf",
+      "sha1": "10e2c3156bea5c00200d0b1761cb58b3e27ec7bf"
+    },
+    {
+      "language": "cs",
+      "locale": "cs_cz",
+      "url": "https://resources.download.minecraft.net/b8/b87f04cbdddf63fac7f3979c2078c30ccc80382e",
+      "sha1": "b87f04cbdddf63fac7f3979c2078c30ccc80382e"
+    },
+    {
+      "language": "sk",
+      "locale": "sk_sk",
+      "url": "https://resources.download.minecraft.net/ec/ec2f84be0ef62683305d7f111c7e0cece1803741",
+      "sha1": "ec2f84be0ef62683305d7f111c7e0cece1803741"
+    },
+    {
+      "language": "ro",
+      "locale": "ro_ro",
+      "url": "https://resources.download.minecraft.net/be/beafcb14418d94c5c1d70ecf1f794f18c7d604e0",
+      "sha1": "beafcb14418d94c5c1d70ecf1f794f18c7d604e0"
+    },
+    {
+      "language": "ar",
+      "locale": "ar_sa",
+      "url": "https://resources.download.minecraft.net/f2/f2e64f16c750dc934928764b821639ec63a6e32c",
+      "sha1": "f2e64f16c750dc934928764b821639ec63a6e32c"
+    },
+    {
+      "language": "bg",
+      "locale": "bg_bg",
+      "url": "https://resources.download.minecraft.net/fc/fc2f3ffc7207c91227ba24a90b54528642a1cb6c",
+      "sha1": "fc2f3ffc7207c91227ba24a90b54528642a1cb6c"
+    },
+    {
+      "language": "el",
+      "locale": "el_gr",
+      "url": "https://resources.download.minecraft.net/bd/bdc6dd06a73f3792e7b6427c71370a0d6ff1e3ca",
+      "sha1": "bdc6dd06a73f3792e7b6427c71370a0d6ff1e3ca"
+    },
+    {
+      "language": "nl",
+      "locale": "nl_nl",
+      "url": "https://resources.download.minecraft.net/a5/a59c4eac420c1d736ba5b1d18dff4db9936867ae",
+      "sha1": "a59c4eac420c1d736ba5b1d18dff4db9936867ae"
+    },
+    {
+      "language": "sv",
+      "locale": "sv_se",
+      "url": "https://resources.download.minecraft.net/fb/fbe922002db443f4c74a1992f1eb414a82450a99",
+      "sha1": "fbe922002db443f4c74a1992f1eb414a82450a99"
+    },
+    {
+      "language": "en",
+      "source": "installed Paper 26.2/129 assets/minecraft/lang/en_us.json",
+      "server_jar_sha256": "09622eeea2dc90b37a5dc8c94d275da910c9a46a4bf6570d8535189334205bff"
+    }
+  ]
+}

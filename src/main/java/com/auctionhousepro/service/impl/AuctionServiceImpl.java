@@ -466,7 +466,7 @@ public final class AuctionServiceImpl implements AuctionService {
                 ledger.processQueued().exceptionally(failure -> null);
                 return onMainThread(() -> {
                     if (updated.status()==AuctionStatus.SOLD) { processSale(updated); Bukkit.getPluginManager().callEvent(new AuctionWinEvent(updated)); }
-                    else { notificationService.notify(updated.sellerId(),"messages.expired-auction",Map.of("item",updated.item().getType().name())); Bukkit.getPluginManager().callEvent(new AuctionExpireEvent(updated)); }
+                    else { notificationService.notifyItem(updated.sellerId(),"messages.expired-auction",updated.item(),Map.of()); Bukkit.getPluginManager().callEvent(new AuctionExpireEvent(updated)); }
                     return null;
                 });
             })).exceptionally(failure -> { plugin.getLogger().warning("Expiry transition failed: "+failure.getMessage()); return null; });
@@ -480,9 +480,9 @@ public final class AuctionServiceImpl implements AuctionService {
         OfflinePlayer seller = Bukkit.getOfflinePlayer(auction.sellerId());
         telemetryService.markSale(0);
         double sellerCut = auction.currentBid() * Math.max(0.0D, 1.0D - configManager.taxRate(seller) - configManager.commissionRate(seller));
-        notificationService.notify(auction.sellerId(), "messages.sold-auction", Map.of("item", auction.item().getType().name(), "amount", economyService.format(auction.currentBid())));
+        notificationService.notifyItem(auction.sellerId(), "messages.sold-auction", auction.item(), Map.of("amount", economyService.format(auction.currentBid())));
         if (auction.highestBidderId() != null) {
-            notificationService.notify(auction.highestBidderId(), "messages.won-auction", Map.of("item", auction.item().getType().name()));
+            notificationService.notifyItem(auction.highestBidderId(), "messages.won-auction", auction.item(), Map.of());
         }
         auditLogService.append(auction.sellerId(), "auction-sold", "id=" + auction.id() + ", sellerCut=" + sellerCut);
         repository.appendLog(auction.sellerId(), "auction-sold", "id=" + auction.id() + ", gross=" + auction.currentBid());
@@ -496,7 +496,7 @@ public final class AuctionServiceImpl implements AuctionService {
             );
         }
         if (configManager.highSaleBroadcastEnabled() && auction.currentBid() >= configManager.rareBroadcastThreshold()) {
-            notificationService.broadcast("messages.high-sale-broadcast", Map.of("seller", sellerName, "item", itemTypeName, "amount", economyService.format(auction.currentBid())));
+            notificationService.broadcastItem("messages.high-sale-broadcast", auction.item(), Map.of("seller", sellerName, "amount", economyService.format(auction.currentBid())));
         }
     }
 
@@ -510,7 +510,7 @@ public final class AuctionServiceImpl implements AuctionService {
                     continue;
                 }
                 if (subscription.targetPrice() != null && auction.displayPrice() >= subscription.targetPrice()) {
-                    notificationService.notify(subscription.playerId(), "messages.watch-target-reached", Map.of("item", auction.item().getType().name(), "amount", economyService.format(auction.displayPrice())));
+                    notificationService.notifyItem(subscription.playerId(), "messages.watch-target-reached", auction.item(), Map.of("amount", economyService.format(auction.displayPrice())));
                     notifications.add(marketRepository.clearWatchTarget(subscription.playerId(), auction.id()));
                 }
             }
@@ -578,7 +578,7 @@ public final class AuctionServiceImpl implements AuctionService {
                 );
             }
             if (configManager.rareListingBroadcastEnabled() && inserted.displayPrice() >= configManager.rareBroadcastThreshold()) {
-                notificationService.broadcast("messages.rare-listing-broadcast", Map.of("seller", sellerName, "item", itemTypeName, "amount", economyService.format(inserted.displayPrice())));
+                notificationService.broadcastItem("messages.rare-listing-broadcast", inserted.item(), Map.of("seller", sellerName, "amount", economyService.format(inserted.displayPrice())));
             }
         } catch (Exception exception) {
             plugin.getLogger().warning("Auction created but post-create actions failed: " + exception.getMessage());
